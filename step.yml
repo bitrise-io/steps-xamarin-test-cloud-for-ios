@@ -17,37 +17,51 @@ is_skippable: false
 dependencies: []
 run_if: ""
 inputs:
-  - test_cloud_path:
+  - xamarin_project:
     opts:
-      title: "test-cloud.exe path"
-      summary: "test-cloud.exe path"
+      title: Path to Xamarin Project
       description: |
-        project_root/packages/Xamarin.UITest.X.X.X/tools/test-cloud.exe
-      is_expand: true
+        Path to Xamarin Project
       is_required: true
-      is_dont_change_value: false
-  - ipa_path: $BITRISE_IPA_PATH
+      is_expand: true
+  - xamarin_test_project:
     opts:
-      title: "IPA path"
-      summary: "IPA path"
+      title: Path to Xamarin UITest Project
       description: |
-        The path to the IPA to test.
-
-        The IPA should be generated for iPhone platform,
-        to allow Xamarin Test Cloud run IPA on device.
-
-        The IPA should be generated with configuraton, that starts the Xamarin Test Cloud Agent.
-        Ex:
-
-        in AppDelegate.cs / FinishedLaunching method:
-      			#if ENABLE_TEST_CLOUD
-      			Xamarin.Calabash.Start();
-      			#endif
-
-        ENABLE_TEST_CLOUD is a defined symbol for Debug configuration.
-      is_expand: true
+        Path to Xamarin UITest Project
       is_required: true
+      is_expand: true
+  - xamarin_configuration: "Debug"
+    opts:
+      title: Xamarin project configuration
+      description: |
+        Xamarin project configuration
+      is_required: true
+      is_expand: true
+  - xamarin_platform: "iPhoneSimulator"
+    opts:
+      title: Xamarin platform
+      description: |
+        Xamarin platform
+      is_required: true
+      is_expand: true
+  - is_clean_build: "yes"
+    opts:
+      title: "Do a clean before the archive?"
+      value_options:
+        - "yes"
+        - "no"
+      is_required: true
+      is_expand: true
       is_dont_change_value: false
+  - xamarin_builder:
+    opts:
+      title: Build tool
+      value_options:
+        - xbuild
+        - mdtool
+      is_required: true
+      is_expand: true
   - api_key:
     opts:
       title: "Api key"
@@ -63,19 +77,6 @@ inputs:
       summary: "User email"
       description: |
         The e-mail address of the team member submitting the tests.
-      is_expand: true
-      is_required: true
-      is_dont_change_value: false
-  - assembly_dir:
-    opts:
-      title: "Assembly dir"
-      summary: "Assembly dir"
-      description: |
-        The path to the folder holding the test assemblies.
-        This directory should contains:
-        - nunit.framework.dll
-        - Xamarin.UITest.dll
-        - *.UITest.dll
       is_expand: true
       is_required: true
       is_dont_change_value: false
@@ -97,7 +98,7 @@ inputs:
       is_expand: true
       is_required: false
       is_dont_change_value: false
-  - async: "yes"
+  - async: "no"
     opts:
       title: "Don't wait for cloud test run to complete"
       summary: "Don't wait for cloud test run to complete"
@@ -127,32 +128,12 @@ inputs:
       is_expand: true
       is_required: false
       is_dont_change_value: false
-  - nunit_xml:
-    opts:
-      title: "NUnit results XML filename"
-      summary: "NUnit results XML filename"
-      description: |
-        The filename to which test results are exported,
-        formatted as NUnit results XML.
-      is_expand: true
-      is_required: false
-      is_dont_change_value: false
   - series: "master"
     opts:
       title: "Test series"
       summary: "Test series"
       description: |
         Test series.
-      is_expand: true
-      is_required: false
-      is_dont_change_value: false
-  - dsym:
-    opts:
-      title: "dSYM file path"
-      summary: "dSYM file path"
-      description: |
-        Will upload the dSYM files along with the application and tests.
-        This allows for more detail in the log files.
       is_expand: true
       is_required: false
       is_dont_change_value: false
@@ -169,3 +150,13 @@ inputs:
       - by_test_fixture
       - by_test_chunk
 outputs:
+  - BITRISE_XAMARIN_TEST_RESULT:
+    opts:
+      title: Result of the tests. 'succeeded' or 'failed'.
+      value_options:
+      - succeeded
+      - failed
+  - BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT:
+    opts:
+      title: ""
+      description: ""
