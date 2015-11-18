@@ -1,0 +1,171 @@
+title: "Submit to Xamarin Test Cloud"
+summary: "Submit to Xamarin Test Cloud"
+description: |-
+  Submit test results to Xamarin Test Cloud.
+website:
+source_code_url:
+support_url:
+host_os_tags:
+  - osx-10.10
+project_type_tags:
+  - xamarin
+type_tags:
+  - test
+is_requires_admin_user: true
+is_always_run: false
+is_skippable: false
+dependencies: []
+run_if: ""
+inputs:
+  - test_cloud_path:
+    opts:
+      title: "test-cloud.exe path"
+      summary: "test-cloud.exe path"
+      description: |
+        project_root/packages/Xamarin.UITest.X.X.X/tools/test-cloud.exe
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - ipa_path: $BITRISE_IPA_PATH
+    opts:
+      title: "IPA path"
+      summary: "IPA path"
+      description: |
+        The path to the IPA to test.
+
+        The IPA should be generated for iPhone platform,
+        to allow Xamarin Test Cloud run IPA on device.
+
+        The IPA should be generated with configuraton, that starts the Xamarin Test Cloud Agent.
+        Ex:
+
+        in AppDelegate.cs / FinishedLaunching method:
+      			#if ENABLE_TEST_CLOUD
+      			Xamarin.Calabash.Start();
+      			#endif
+
+        ENABLE_TEST_CLOUD is a defined symbol for Debug configuration.
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - api_key:
+    opts:
+      title: "Api key"
+      summary: "Api key"
+      description: |
+        Api key.
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - user:
+    opts:
+      title: "User email"
+      summary: "User email"
+      description: |
+        The e-mail address of the team member submitting the tests.
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - assembly_dir:
+    opts:
+      title: "Assembly dir"
+      summary: "Assembly dir"
+      description: |
+        The path to the folder holding the test assemblies.
+        This directory should contains:
+        - nunit.framework.dll
+        - Xamarin.UITest.dll
+        - *.UITest.dll
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - devices:
+    opts:
+      title: "Device selection id"
+      summary: "Device selection id"
+      description: |
+        Device selection id from the Test Cloud upload dialog.
+      is_expand: true
+      is_required: true
+      is_dont_change_value: false
+  - app_name:
+    opts:
+      title: "App name to create or add test to"
+      summary: "App name to create or add test to"
+      description: |
+        App name to create or add test to.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - async: "yes"
+    opts:
+      title: "Don't wait for cloud test run to complete"
+      summary: "Don't wait for cloud test run to complete"
+      description: |
+        Don't wait for cloud test run to complete.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+      value_options:
+      - "yes"
+      - "no"
+  - category:
+    opts:
+      title: "NUnit category to run"
+      summary: "NUnit category to run"
+      description: |
+        NUnit category to run.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - fixture:
+    opts:
+      title: "NUnit fixture / namespace to run"
+      summary: "NUnit fixture / namespace to run"
+      description: |
+        NUnit fixture / namespace to run.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - nunit_xml:
+    opts:
+      title: "NUnit results XML filename"
+      summary: "NUnit results XML filename"
+      description: |
+        The filename to which test results are exported,
+        formatted as NUnit results XML.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - series: "master"
+    opts:
+      title: "Test series"
+      summary: "Test series"
+      description: |
+        Test series.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - dsym:
+    opts:
+      title: "dSYM file path"
+      summary: "dSYM file path"
+      description: |
+        Will upload the dSYM files along with the application and tests.
+        This allows for more detail in the log files.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+  - parallelization:
+    opts:
+      title: "Run tests in parallel by method/fixture"
+      summary: "Run tests in parallel by method/fixture"
+      description: |
+        Run tests in parallel by method/fixture.
+      is_expand: true
+      is_required: false
+      is_dont_change_value: false
+      value_options:
+      - by_test_fixture
+      - by_test_chunk
+outputs:
