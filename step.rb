@@ -47,12 +47,12 @@ def archive_project!(builder, project_path, configuration, platform)
   params = []
   case builder
   when 'xbuild'
-    params << "\"#{builder}\""
+    params << 'xbuild'
     params << "\"#{project_path}\""
     params << '/t:Build'
     params << "/p:Configuration=\"#{configuration}\""
     params << "/p:Platform=\"#{platform}\""
-    params << "/p:BuildIpa=\"true\""
+    params << '/p:BuildIpa=true'
     params << "/p:OutputPath=\"#{output_path}/\""
   when 'mdtool'
     params << "#{@mdtool}"
@@ -83,7 +83,7 @@ def archive_project!(builder, project_path, configuration, platform)
     puts
     puts '==> Packaging application'
     puts "xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\""
-    system("xcrun -sdk iphoneos PackageApplication -v #{app_file} -o #{ipa_path}")
+    system("xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\"")
     fail_with_message('Failed to create .ipa from .app') unless $?.success?
   else
     ipa_path = Dir[File.join(build_path, '/**/*.ipa')].first
@@ -112,7 +112,7 @@ def build_project!(builder, project_path, configuration, platform)
     params << "#{@mdtool}"
     params << '-v build'
     params << "\"#{project_path}\""
-    params << "--configuration:\"#{configuration}\"|\"#{platform}\""
+    params << "--configuration:\"#{configuration}|#{platform}\""
     params << '--target:Build'
   else
     fail_with_message('Invalid build tool detected')
@@ -142,9 +142,8 @@ def clean_project!(builder, project_path, configuration, platform, is_test)
     params << '-v build'
     params << "\"#{project_path}\""
     params << '--target:Clean'
-    param_configuration = "--configuration:\"#{configuration}\""
-    param_configuration += "|\"#{platform}\"" unless is_test
-    params << param_configuration
+    params << "--configuration:\"#{configuration}|#{platform}\"" unless is_test
+    params << "--configuration:\"#{configuration}\"" if is_test
   else
     fail_with_message('Invalid build tool detected')
   end
@@ -219,7 +218,7 @@ puts " * configuration: #{options[:configuration]}"
 puts " * platform: #{options[:platform]}"
 puts " * builder: #{options[:builder]}"
 puts " * clean_build: #{options[:clean_build]}"
-puts " * api_key: #{options[:api_key]}"
+puts ' * api_key: ***'
 puts " * user: #{options[:user]}"
 puts " * devices: #{options[:devices]}"
 puts " * app_name: #{options[:app_name]}"
@@ -291,7 +290,7 @@ result_log = File.join(work_dir, 'TestResult.xml')
 
 #
 # Build Request
-request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
+request = "#{@mono} #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
 request += " --user #{options[:user]}"
 request += " --assembly-dir #{assembly_dir}"
 request += " --devices #{options[:devices]}"
