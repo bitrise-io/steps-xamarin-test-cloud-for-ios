@@ -22,7 +22,7 @@ end
 
 def to_bool(value)
   return true if value == true || value =~ (/^(true|t|yes|y|1)$/i)
-  return false if value == false || value.nil? || value =~ (/^(false|f|no|n|0)$/i)
+  return false if value == false || value.nil? || value == '' || value =~ (/^(false|f|no|n|0)$/i)
   fail_with_message("Invalid value for Boolean: \"#{value}\"")
 end
 
@@ -172,15 +172,15 @@ options = {
   platform: nil,
   builder: nil,
   clean_build: true,
-  api_key: nil,
-  user: nil,
-  devices: nil,
-  app_name: nil,
-  async: true,
-  category: nil,
-  fixture: nil,
-  series: nil,
-  parallelization: nil
+  test_cloud_api_key: nil,
+  xamarin_user: nil,
+  test_cloud_devices: nil,
+  test_cloud_app_name: nil,
+  test_cloud_is_async: true,
+  test_cloud_category: nil,
+  test_cloud_fixture: nil,
+  test_cloud_series: nil,
+  test_cloud_parallelization: nil
 }
 
 parser = OptionParser.new do|opts|
@@ -191,15 +191,15 @@ parser = OptionParser.new do|opts|
   opts.on('-p', '--platform platform', 'Platform') { |p| options[:platform] = p unless p.to_s == '' }
   opts.on('-b', '--builder builder', 'Builder') { |b| options[:builder] = b unless b.to_s == '' }
   opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false if to_bool(i) == false }
-  opts.on('-a', '--api key', 'Api key') { |a| options[:api_key] = a unless a.to_s == '' }
-  opts.on('-u', '--user user', 'User') { |u| options[:user] = u unless u.to_s == '' }
-  opts.on('-d', '--devices devices', 'Devices') { |d| options[:devices] = d unless d.to_s == '' }
-  opts.on('-n', '--app name', 'App name') { |n| options[:app_name] = n unless n.to_s == '' }
-  opts.on('-y', '--async async', 'Async') { |y| options[:async] = false if to_bool(y) == false }
-  opts.on('-e', '--category category', 'Category') { |e| options[:category] = e unless e.to_s == '' }
-  opts.on('-f', '--fixture fixture', 'Fixture') { |f| options[:fixture] = f unless f.to_s == '' }
-  opts.on('-r', '--series series', 'Series') { |r| options[:series] = r unless r.to_s == '' }
-  opts.on('-l', '--parallelization parallelization', 'Parallelization') { |l| options[:parallelization] = l unless l.to_s == '' }
+  opts.on('-a', '--api key', 'Api key') { |a| options[:test_cloud_api_key] = a unless a.to_s == '' }
+  opts.on('-u', '--xamarin_user xamarin_user', 'User') { |u| options[:xamarin_user] = u unless u.to_s == '' }
+  opts.on('-d', '--test_cloud_devices test_cloud_devices', 'Devices') { |d| options[:test_cloud_devices] = d unless d.to_s == '' }
+  opts.on('-n', '--app name', 'App name') { |n| options[:test_cloud_app_name] = n unless n.to_s == '' }
+  opts.on('-y', '--test_cloud_is_async test_cloud_is_async', 'Async') { |y| options[:test_cloud_is_async] = false if to_bool(y) == false }
+  opts.on('-e', '--test_cloud_category test_cloud_category', 'Category') { |e| options[:test_cloud_category] = e unless e.to_s == '' }
+  opts.on('-f', '--test_cloud_fixture test_cloud_fixture', 'Fixture') { |f| options[:test_cloud_fixture] = f unless f.to_s == '' }
+  opts.on('-r', '--test_cloud_series test_cloud_series', 'Series') { |r| options[:test_cloud_series] = r unless r.to_s == '' }
+  opts.on('-l', '--test_cloud_parallelization test_cloud_parallelization', 'Parallelization') { |l| options[:test_cloud_parallelization] = l unless l.to_s == '' }
   opts.on('-h', '--help', 'Displays Help') do
     exit
   end
@@ -210,9 +210,9 @@ fail_with_message('No project file found') unless options[:project] && File.exis
 fail_with_message('No test_project file found') unless options[:test_project] && File.exist?(options[:test_project])
 fail_with_message('configuration not specified') unless options[:configuration]
 fail_with_message('platform not specified') unless options[:platform]
-fail_with_message('api_key not specified') unless options[:api_key]
-fail_with_message('user not specified') unless options[:user]
-fail_with_message('devices not specified') unless options[:devices]
+fail_with_message('test_cloud_api_key not specified') unless options[:test_cloud_api_key]
+fail_with_message('xamarin_user not specified') unless options[:xamarin_user]
+fail_with_message('test_cloud_devices not specified') unless options[:test_cloud_devices]
 
 #
 # Print configs
@@ -224,15 +224,15 @@ puts " * configuration: #{options[:configuration]}"
 puts " * platform: #{options[:platform]}"
 puts " * builder: #{options[:builder]}"
 puts " * clean_build: #{options[:clean_build]}"
-puts ' * api_key: ***'
-puts " * user: #{options[:user]}"
-puts " * devices: #{options[:devices]}"
-puts " * app_name: #{options[:app_name]}"
-puts " * async: #{options[:async]}"
-puts " * category: #{options[:category]}"
-puts " * fixture: #{options[:fixture]}"
-puts " * series: #{options[:series]}"
-puts " * parallelization: #{options[:parallelization]}"
+puts ' * test_cloud_api_key: ***'
+puts " * xamarin_user: #{options[:xamarin_user]}"
+puts " * test_cloud_devices: #{options[:test_cloud_devices]}"
+puts " * test_cloud_app_name: #{options[:test_cloud_app_name]}"
+puts " * test_cloud_is_async: #{options[:test_cloud_is_async]}"
+puts " * test_cloud_category: #{options[:test_cloud_category]}"
+puts " * test_cloud_fixture: #{options[:test_cloud_fixture]}"
+puts " * test_cloud_series: #{options[:test_cloud_series]}"
+puts " * test_cloud_parallelization: #{options[:test_cloud_parallelization]}"
 
 #
 # Restoring nuget packages
@@ -296,20 +296,20 @@ result_log = File.join(work_dir, 'TestResult.xml')
 
 #
 # Build Request
-request = "#{@mono} #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
-request += " --user #{options[:user]}"
+request = "#{@mono} #{test_cloud} submit #{ipa_path} #{options[:test_cloud_api_key]}"
+request += " --user #{options[:xamarin_user]}"
 request += " --assembly-dir #{assembly_dir}"
-request += " --devices #{options[:devices]}"
-request += " --app-name \"#{options[:app_name]}\"" if options[:app_name]
-request += ' --async' if options[:async]
-request += " --category #{options[:category]}" if options[:category]
-request += " --fixture #{options[:fixture]}" if options[:fixture]
-request += " --series #{options[:series]}" if options[:series]
+request += " --devices #{options[:test_cloud_devices]}"
+request += " --app-name \"#{options[:test_cloud_app_name]}\"" if options[:test_cloud_app_name]
+request += ' --async' if options[:test_cloud_is_async]
+request += " --category #{options[:test_cloud_category]}" if options[:test_cloud_category]
+request += " --fixture #{options[:test_cloud_fixture]}" if options[:test_cloud_fixture]
+request += " --series #{options[:test_cloud_series]}" if options[:test_cloud_series]
 request += " --dsym #{options[:dsym]}" if options[:dsym]
 request += " --nunit-xml #{result_log}"
-if options[:parallelization]
-  request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
-  request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
+if options[:test_cloud_parallelization]
+  request += ' --fixture-chunk' if options[:test_cloud_parallelization] == 'by_test_fixture'
+  request += ' --test-chunk' if options[:test_cloud_parallelization] == 'by_test_chunk'
 end
 
 puts
