@@ -1,6 +1,5 @@
 require 'optparse'
 require 'pathname'
-require 'tmpdir'
 
 @mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 @mono = '/Library/Frameworks/Mono.framework/Versions/Current/bin/mono'

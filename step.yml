@@ -3,9 +3,9 @@ summary: "Submit to Xamarin Test Cloud"
 description: |-
   Submit test results to Xamarin Test Cloud.
 website:
-source_code_url:
-support_url:
-host_os_tags:
+source_code_url: https://github.com/bitrise-io/steps-xamarin-test-cloud-for-ios
+support_url: https://github.com/bitrise-io/steps-xamarin-test-cloud-for-ios
+host_os_tags: https://github.com/bitrise-io/steps-xamarin-test-cloud-for-ios/issues
   - osx-10.10
 project_type_tags:
   - xamarin
