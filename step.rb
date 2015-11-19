@@ -20,6 +20,12 @@ def error_with_message(message)
   puts "\e[31m#{message}\e[0m"
 end
 
+def to_bool(value)
+  return true if value == true || value =~ (/^(true|t|yes|y|1)$/i)
+  return false if value == false || value.nil? || value =~ (/^(false|f|no|n|0)$/i)
+  fail_with_message("Invalid value for Boolean: \"#{value}\"")
+end
+
 def get_related_solutions(project_path)
   project_name = File.basename(project_path)
   project_dir = File.dirname(project_path)
@@ -47,12 +53,12 @@ def archive_project!(builder, project_path, configuration, platform)
   params = []
   case builder
   when 'xbuild'
-    params << "\"#{builder}\""
+    params << 'xbuild'
     params << "\"#{project_path}\""
     params << '/t:Build'
     params << "/p:Configuration=\"#{configuration}\""
     params << "/p:Platform=\"#{platform}\""
-    params << "/p:BuildIpa=\"true\""
+    params << '/p:BuildIpa=true'
     params << "/p:OutputPath=\"#{output_path}/\""
   when 'mdtool'
     params << "#{@mdtool}"
@@ -83,7 +89,7 @@ def archive_project!(builder, project_path, configuration, platform)
     puts
     puts '==> Packaging application'
     puts "xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\""
-    system("xcrun -sdk iphoneos PackageApplication -v #{app_file} -o #{ipa_path}")
+    system("xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\"")
     fail_with_message('Failed to create .ipa from .app') unless $?.success?
   else
     ipa_path = Dir[File.join(build_path, '/**/*.ipa')].first
@@ -112,7 +118,7 @@ def build_project!(builder, project_path, configuration, platform)
     params << "#{@mdtool}"
     params << '-v build'
     params << "\"#{project_path}\""
-    params << "--configuration:\"#{configuration}\"|\"#{platform}\""
+    params << "--configuration:\"#{configuration}|#{platform}\""
     params << '--target:Build'
   else
     fail_with_message('Invalid build tool detected')
@@ -142,9 +148,8 @@ def clean_project!(builder, project_path, configuration, platform, is_test)
     params << '-v build'
     params << "\"#{project_path}\""
     params << '--target:Clean'
-    param_configuration = "--configuration:\"#{configuration}\""
-    param_configuration += "|\"#{platform}\"" unless is_test
-    params << param_configuration
+    params << "--configuration:\"#{configuration}|#{platform}\"" unless is_test
+    params << "--configuration:\"#{configuration}\"" if is_test
   else
     fail_with_message('Invalid build tool detected')
   end
@@ -171,7 +176,7 @@ options = {
   user: nil,
   devices: nil,
   app_name: nil,
-  async: nil,
+  async: true,
   category: nil,
   fixture: nil,
   series: nil,
@@ -185,12 +190,12 @@ parser = OptionParser.new do|opts|
   opts.on('-c', '--configuration config', 'Configuration') { |c| options[:configuration] = c unless c.to_s == '' }
   opts.on('-p', '--platform platform', 'Platform') { |p| options[:platform] = p unless p.to_s == '' }
   opts.on('-b', '--builder builder', 'Builder') { |b| options[:builder] = b unless b.to_s == '' }
-  opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false if i.to_s == 'no' }
+  opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false if to_bool(i) == false }
   opts.on('-a', '--api key', 'Api key') { |a| options[:api_key] = a unless a.to_s == '' }
   opts.on('-u', '--user user', 'User') { |u| options[:user] = u unless u.to_s == '' }
   opts.on('-d', '--devices devices', 'Devices') { |d| options[:devices] = d unless d.to_s == '' }
   opts.on('-n', '--app name', 'App name') { |n| options[:app_name] = n unless n.to_s == '' }
-  opts.on('-y', '--async async', 'Async') { |y| options[:async] = y unless y.to_s == '' }
+  opts.on('-y', '--async async', 'Async') { |y| options[:async] = false if to_bool(y) == false }
   opts.on('-e', '--category category', 'Category') { |e| options[:category] = e unless e.to_s == '' }
   opts.on('-f', '--fixture fixture', 'Fixture') { |f| options[:fixture] = f unless f.to_s == '' }
   opts.on('-r', '--series series', 'Series') { |r| options[:series] = r unless r.to_s == '' }
@@ -219,7 +224,7 @@ puts " * configuration: #{options[:configuration]}"
 puts " * platform: #{options[:platform]}"
 puts " * builder: #{options[:builder]}"
 puts " * clean_build: #{options[:clean_build]}"
-puts " * api_key: #{options[:api_key]}"
+puts ' * api_key: ***'
 puts " * user: #{options[:user]}"
 puts " * devices: #{options[:devices]}"
 puts " * app_name: #{options[:app_name]}"
@@ -291,12 +296,12 @@ result_log = File.join(work_dir, 'TestResult.xml')
 
 #
 # Build Request
-request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
+request = "#{@mono} #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
 request += " --user #{options[:user]}"
 request += " --assembly-dir #{assembly_dir}"
 request += " --devices #{options[:devices]}"
 request += " --app-name \"#{options[:app_name]}\"" if options[:app_name]
-request += ' --async' if options[:async] && options[:async].eql?('yes')
+request += ' --async' if options[:async]
 request += " --category #{options[:category]}" if options[:category]
 request += " --fixture #{options[:fixture]}" if options[:fixture]
 request += " --series #{options[:series]}" if options[:series]
