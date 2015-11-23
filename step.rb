@@ -252,7 +252,7 @@ result_log = File.join(work_dir, 'TestResult.xml')
 
 #
 # Build Request
-request = "#mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
+request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
 request += " --user #{options[:user]}"
 request += " --assembly-dir #{assembly_dir}"
 request += " --devices #{options[:devices]}"
