@@ -11,14 +11,10 @@ app:
   - API_KEY:
   - USER:
   - DEVICES:
-  - APP_NAME:
   - ASYNC:
-  - CATEGORY:
-  - FIXTURE:
-  - NUNIT_XML:
   - SERIES:
-  - DSYM:
   - PARALLELIZATION:
+  - OTHER_PARAMETERS:
 
 workflows:
   test:
@@ -43,15 +39,13 @@ workflows:
         - xamarin_platform: $BITRISE_XAMARIN_PLATFORM
         - xamarin_builder: $BITRISE_XAMARIN_BUILD_TOOL
         - is_clean_build: yes
-        - test_cloud_api_key: $API_KEY
         - xamarin_user: $USER
+        - test_cloud_api_key: $API_KEY
         - test_cloud_devices: $DEVICES
-        - test_cloud_app_name: $APP_NAME
         - test_cloud_is_async: $ASYNC
-        - test_cloud_category: $CATEGORY
-        - test_cloud_fixture: $FIXTURE
         - test_cloud_series: $SERIES
         - test_cloud_parallelization: $PARALLELIZATION
+        - other_parameters: $OTHER_PARAMETERS
     - script:
         title: Step output test
         inputs:
