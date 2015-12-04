@@ -239,12 +239,8 @@ options[:dsym] = dsym_path if dsym_path && File.exist?(dsym_path)
 
 #
 # Get test cloud path
-project_dir = File.dirname(options[:project])
-root_dir = File.dirname(project_dir)
-test_clouds = Dir[File.join(root_dir, 'packages/Xamarin.UITest.*/tools/test-cloud.exe')]
-fail_with_message('No test-cloud.exe found') unless test_clouds && !test_clouds.empty?
-fail_with_message('No test-cloud.exe found') unless File.exist?(test_clouds.first)
-test_cloud = test_clouds.first
+test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].first
+fail_with_message('No test-cloud.exe found') unless test_cloud
 puts "  (i) test_cloud path: #{test_cloud}"
 
 work_dir = ENV['BITRISE_SOURCE_DIR']
