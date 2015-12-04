@@ -239,7 +239,7 @@ options[:dsym] = dsym_path if dsym_path && File.exist?(dsym_path)
 
 #
 # Get test cloud path
-test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].first
+test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].first
 fail_with_message('No test-cloud.exe found') unless test_cloud
 puts "  (i) test_cloud path: #{test_cloud}"
 
