@@ -1,5 +1,6 @@
 require 'optparse'
 require 'pathname'
+require_relative 'builder/builder'
 
 @mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 @nuget = '/Library/Frameworks/Mono.framework/Versions/Current/bin/nuget'
@@ -23,119 +24,6 @@ def to_bool(value)
   return true if value == true || value =~ (/^(true|t|yes|y|1)$/i)
   return false if value == false || value.nil? || value =~ (/^(false|f|no|n|0)$/i)
   fail_with_message("Invalid value for Boolean: \"#{value}\"")
-end
-
-def archive_project!(builder, project_path, configuration, platform)
-  # Build project
-  output_path = File.join('bin', platform, configuration)
-
-  params = []
-  case builder
-  when 'xbuild'
-    params << 'xbuild'
-    params << "\"#{project_path}\""
-    params << '/t:Build'
-    params << "/p:Configuration=\"#{configuration}\""
-    params << "/p:Platform=\"#{platform}\""
-    params << '/p:BuildIpa=true'
-    params << "/p:OutputPath=\"#{output_path}/\""
-  when 'mdtool'
-    params << "#{@mdtool}"
-    params << '-v build'
-    params << "\"#{project_path}\""
-    params << "--configuration:\"#{configuration}|#{platform}\""
-    params << '--target:Build'
-  else
-    fail_with_message('Invalid build tool detected')
-  end
-
-  puts "#{params.join(' ')}"
-  system("#{params.join(' ')}")
-  fail_with_message('Build failed') unless $?.success?
-
-  # Get the build path
-  project_directory = File.dirname(project_path)
-  build_path = File.join(project_directory, output_path)
-
-  # Get the ipa path
-  ipa_path = ''
-  if builder.eql? 'mdtool'
-    app_file = Pathname.new(Dir[File.join(build_path, '/**/*.app')].first).realpath.to_s
-    app_name = File.basename(app_file, '.*')
-    app_directory = File.dirname(app_file)
-    ipa_path = File.join(app_directory, "#{app_name}.ipa")
-
-    puts
-    puts '==> Packaging application'
-    puts "xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\""
-    system("xcrun -sdk iphoneos PackageApplication -v \"#{app_file}\" -o \"#{ipa_path}\"")
-    fail_with_message('Failed to create .ipa from .app') unless $?.success?
-  else
-    ipa_path = Dir[File.join(build_path, '/**/*.ipa')].first
-  end
-
-  # Get dSYM path
-  dsym_path = Dir[File.join("#{build_path}", '/**/*.app.dSYM')].first
-
-  return ipa_path, dsym_path
-end
-
-def build_project!(builder, project_path, configuration, platform)
-  # Build project
-  output_path = File.join('bin', platform, configuration)
-
-  params = []
-  case builder
-  when 'xbuild'
-    params << 'xbuild'
-    params << "\"#{project_path}\""
-    params << '/t:Build'
-    params << "/p:Configuration=\"#{configuration}\""
-    params << "/p:Platform=\"#{platform}\""
-    params << "/p:OutputPath=\"#{output_path}/\""
-  when 'mdtool'
-    params << "#{@mdtool}"
-    params << '-v build'
-    params << "\"#{project_path}\""
-    params << "--configuration:\"#{configuration}|#{platform}\""
-    params << '--target:Build'
-  else
-    fail_with_message('Invalid build tool detected')
-  end
-
-  puts "#{params.join(' ')}"
-  system("#{params.join(' ')}")
-  fail_with_message('Build failed') unless $?.success?
-
-  # Get the build path
-  project_directory = File.dirname(project_path)
-  File.join(project_directory, output_path)
-end
-
-def clean_project!(builder, project_path, configuration, platform, is_test)
-  # clean project
-  params = []
-  case builder
-  when 'xbuild'
-    params << 'xbuild'
-    params << "\"#{project_path}\""
-    params << '/t:Clean'
-    params << "/p:Configuration=\"#{configuration}\""
-    params << "/p:Platform=\"#{platform}\"" unless is_test
-  when 'mdtool'
-    params << "#{@mdtool}"
-    params << '-v build'
-    params << "\"#{project_path}\""
-    params << '--target:Clean'
-    params << "--configuration:\"#{configuration}|#{platform}\"" unless is_test
-    params << "--configuration:\"#{configuration}\"" if is_test
-  else
-    fail_with_message('Invalid build tool detected')
-  end
-
-  puts "#{params.join(' ')}"
-  system("#{params.join(' ')}")
-  fail_with_message('Clean failed') unless $?.success?
 end
 
 # -----------------------
@@ -239,7 +127,7 @@ options[:dsym] = dsym_path if dsym_path && File.exist?(dsym_path)
 
 #
 # Get test cloud path
-test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].first
+test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
 fail_with_message('No test-cloud.exe found') unless test_cloud
 puts "  (i) test_cloud path: #{test_cloud}"
 
