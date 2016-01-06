@@ -1,6 +1,6 @@
 require 'optparse'
 require 'pathname'
-require_relative 'builder/builder'
+require_relative 'xamarin-builder/builder'
 
 @mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 @nuget = '/Library/Frameworks/Mono.framework/Versions/Current/bin/nuget'
@@ -33,33 +33,29 @@ end
 #
 # Input validation
 options = {
-  project: nil,
-  test_project: nil,
-  configuration: nil,
-  platform: nil,
-  builder: nil,
-  clean_build: true,
-  api_key: nil,
-  user: nil,
-  devices: nil,
-  async: true,
-  series: 'master',
-  parallelization: nil,
-  other_parameters: nil
+    project: nil,
+    configuration: nil,
+    platform: nil,
+    clean_build: true,
+    api_key: nil,
+    user: nil,
+    devices: nil,
+    async: true,
+    series: 'master',
+    parallelization: nil,
+    other_parameters: nil
 }
 
-parser = OptionParser.new do|opts|
+parser = OptionParser.new do |opts|
   opts.banner = 'Usage: step.rb [options]'
   opts.on('-s', '--project path', 'Project path') { |s| options[:project] = s unless s.to_s == '' }
-  opts.on('-t', '--test project', 'Test project') { |t| options[:test_project] = t unless t.to_s == '' }
   opts.on('-c', '--configuration config', 'Configuration') { |c| options[:configuration] = c unless c.to_s == '' }
   opts.on('-p', '--platform platform', 'Platform') { |p| options[:platform] = p unless p.to_s == '' }
-  opts.on('-b', '--builder builder', 'Builder') { |b| options[:builder] = b unless b.to_s == '' }
-  opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false if to_bool(i) == false }
+  opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false unless to_bool(i) }
   opts.on('-a', '--api key', 'Api key') { |a| options[:api_key] = a unless a.to_s == '' }
   opts.on('-u', '--user user', 'User') { |u| options[:user] = u unless u.to_s == '' }
   opts.on('-d', '--devices devices', 'Devices') { |d| options[:devices] = d unless d.to_s == '' }
-  opts.on('-y', '--async async', 'Async') { |y| options[:async] = false if to_bool(y) == false }
+  opts.on('-y', '--async async', 'Async') { |y| options[:async] = false unless to_bool(y) }
   opts.on('-r', '--series series', 'Series') { |r| options[:series] = r unless r.to_s == '' }
   opts.on('-l', '--parallelization parallelization', 'Parallelization') { |l| options[:parallelization] = l unless l.to_s == '' }
   opts.on('-g', '--sign parameters', 'Sign') { |g| options[:sign_parameters] = g unless g.to_s == '' }
@@ -70,23 +66,13 @@ parser = OptionParser.new do|opts|
 end
 parser.parse!
 
-fail_with_message('No project file found') unless options[:project] && File.exist?(options[:project])
-fail_with_message('No test_project file found') unless options[:test_project] && File.exist?(options[:test_project])
-fail_with_message('configuration not specified') unless options[:configuration]
-fail_with_message('platform not specified') unless options[:platform]
-fail_with_message('api_key not specified') unless options[:api_key]
-fail_with_message('user not specified') unless options[:user]
-fail_with_message('devices not specified') unless options[:devices]
-
 #
 # Print configs
 puts
 puts '========== Configs =========='
 puts " * project: #{options[:project]}"
-puts " * test_project: #{options[:test_project]}"
 puts " * configuration: #{options[:configuration]}"
 puts " * platform: #{options[:platform]}"
-puts " * builder: #{options[:builder]}"
 puts " * clean_build: #{options[:clean_build]}"
 puts ' * api_key: ***'
 puts " * user: #{options[:user]}"
@@ -96,77 +82,140 @@ puts " * series: #{options[:series]}"
 puts " * parallelization: #{options[:parallelization]}"
 puts " * other_parameters: #{options[:other_parameters]}"
 
-if options[:clean_build]
-  #
-  # Cleaning the project
-  puts
-  puts "==> Cleaning project: #{options[:project]}"
-  clean_project!(options[:builder], options[:project], options[:configuration], options[:platform], false)
-
-  puts
-  puts "==> Cleaning test project: #{options[:test_project]}"
-  clean_project!(options[:builder], options[:test_project], options[:configuration], options[:platform], true)
-end
+#
+# Validate inputs
+fail_with_message('No project file found') unless options[:project] && File.exist?(options[:project])
+fail_with_message('configuration not specified') unless options[:configuration]
+fail_with_message('platform not specified') unless options[:platform]
+fail_with_message('api_key not specified') unless options[:api_key]
+fail_with_message('user not specified') unless options[:user]
+fail_with_message('devices not specified') unless options[:devices]
 
 #
-# Archive project
-puts
-puts "==> Archive project: #{options[:project]}"
-ipa_path, dsym_path = archive_project!(options[:builder], options[:project], options[:configuration], options[:platform])
-fail_with_message('Failed to locate ipa path') unless ipa_path && File.exist?(ipa_path)
-puts "  (i) ipa_path path: #{ipa_path}"
-puts "  (i) dsym_path path: #{dsym_path}"
-
-#
-# Build UITest
-puts
-puts "==> Building test project: #{options[:test_project]}"
-assembly_dir = build_project!(options[:builder], options[:test_project], options[:configuration], options[:platform])
-fail_with_message('failed to get test assembly path') unless assembly_dir && File.exist?(assembly_dir)
-options[:dsym] = dsym_path if dsym_path && File.exist?(dsym_path)
-
-#
-# Get test cloud path
-test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
-fail_with_message('No test-cloud.exe found') unless test_cloud
-puts "  (i) test_cloud path: #{test_cloud}"
-
+# Main
 work_dir = ENV['BITRISE_SOURCE_DIR']
 result_log = File.join(work_dir, 'TestResult.xml')
 
-#
-# Build Request
-request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
-request += " --user #{options[:user]}"
-request += " --assembly-dir #{assembly_dir}"
-request += " --devices #{options[:devices]}"
-request += ' --async' if options[:async]
-request += " --series #{options[:series]}" if options[:series]
-request += " --dsym #{options[:dsym]}" if options[:dsym]
-request += " --nunit-xml #{result_log}"
-if options[:parallelization]
+projects_to_test = []
+
+if File.extname(options[:project]) == '.sln'
+  projects = SolutionAnalyzer.new(options[:project]).collect_projects(options[:configuration], options[:platform])
+  projects.each do |project|
+    if project[:api] == MONOTOUCH_API_NAME || project[:api] == XAMARIN_IOS_API_NAME && project[:related_test_project]
+      test_project = ProjectAnalyzer.new(project[:related_test_project]).analyze(options[:configuration], options[:platform])
+
+      projects_to_test << {
+          project: project,
+          test_project: test_project
+      }
+    end
+  end
+else
+  project = ProjectAnalyzer.new(options[:project]).analyze(options[:configuration], options[:platform])
+  if project[:related_test_project]
+    test_project = ProjectAnalyzer.new(project[:related_test_project]).analyze(options[:configuration], options[:platform])
+
+    projects_to_test << {
+        project: project,
+        test_project: test_project
+    }
+  end
+end
+
+fail 'No project and related test project found' if projects_to_test.count == 0
+
+projects_to_test.each do |project_to_test|
+  project = project_to_test[:project]
+  test_project = project_to_test[:test_project]
+
+  puts
+  puts " ** project to test: #{project[:path]}"
+  puts " ** related test project: #{test_project[:path]}"
+
+  builder = Builder.new(project[:path], project[:configuration], project[:platform])
+  test_builder = Builder.new(test_project[:path], test_project[:configuration], test_project[:platform])
+
+  if options[:clean_build]
+    builder.clean!
+    test_builder.clean!
+  end
+
+  #
+  # Build project
+  puts
+  puts "==> Building project: #{project[:path]}"
+
+  built_projects = builder.build!
+
+  ipa_path = ''
+  dsym_path = ''
+
+  built_projects.each do |built_project|
+    if built_project[:api] == MONOTOUCH_API_NAME || built_project[:api] == XAMARIN_IOS_API_NAME && built_project[:build_ipa]
+      ipa_path = builder.export_ipa(built_project[:output_path])
+      puts "  (i) ipa_path: #{ipa_path}"
+
+      dsym_path = builder.export_dsym(built_project[:output_path])
+      puts "  (i) dsym_path: #{dsym_path}"
+    end
+  end
+
+  #
+  # Build UITest
+  puts
+  puts "==> Building test project: #{test_project}"
+
+  built_test_projects = test_builder.build!
+
+  assembly_dir = ''
+
+  built_test_projects.each do |built_test_project|
+    if built_test_project[:api] == XAMARIN_UITEST_API
+      dll_path = test_builder.export_dll(built_test_project[:output_path])
+      assembly_dir = File.dirname(dll_path)
+      puts "  (i) dll_path: #{dll_path}"
+    end
+
+  end
+
+  #
+  # Get test cloud path
+  test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
+  fail_with_message('No test-cloud.exe found') unless test_cloud
+  puts "  (i) test_cloud path: #{test_cloud}"
+
+  #
+  # Build Request
+  request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
+  request += " --user #{options[:user]}"
+  request += " --assembly-dir #{assembly_dir}"
+  request += " --devices #{options[:devices]}"
+  request += ' --async' if options[:async]
+  request += " --series #{options[:series]}" if options[:series]
+  request += " --dsym #{dsym_path}" if dsym_path
+  request += " --nunit-xml #{result_log}"
   request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
   request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
+  request += " #{options[:other_parameters]}" if options[:other_parameters]
+
+  puts
+  puts "request: #{request}"
+  system(request)
+  test_success = $?.success?
+
+  unless test_success
+    puts
+    puts "(i) The test log is available at: #{result_log}"
+    system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
+
+    fail_with_message('test failed')
+  end
 end
-request += " #{options[:other_parameters]}"
 
 puts
-puts "request: #{request}"
-system(request)
-test_success = $?.success?
+puts '(i) The result is: succeeded'
+system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded') if work_dir
 
-if test_success
-  puts
-  puts '(i) The result is: succeeded'
-  system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded') if work_dir
-
-  puts
-  puts "(i) The test log is available at: #{result_log}"
-  system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
-else
-  puts
-  puts "(i) The test log is available at: #{result_log}"
-  system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
-
-  fail_with_message('test failed')
-end
+puts
+puts "(i) The test log is available at: #{result_log}"
+system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
