@@ -209,7 +209,6 @@ projects_to_test.each do |project_to_test|
   #
   # Get test cloud path
   test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
-  puts "test_cloud: #{test_cloud}"
   fail_with_message('No test-cloud.exe found') unless test_cloud
   puts "  (i) test_cloud path: #{test_cloud}"
 
