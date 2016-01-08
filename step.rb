@@ -1,12 +1,20 @@
 require 'optparse'
 require 'pathname'
+
 require_relative 'xamarin-builder/builder'
+
+# -----------------------
+# --- Constants
+# -----------------------
 
 @mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 @nuget = '/Library/Frameworks/Mono.framework/Versions/Current/bin/nuget'
 
+@work_dir = ENV['BITRISE_SOURCE_DIR']
+@result_log_path = File.join(@work_dir, 'TestResult.xml')
+
 # -----------------------
-# --- functions
+# --- Functions
 # -----------------------
 
 def fail_with_message(message)
@@ -27,11 +35,11 @@ def to_bool(value)
 end
 
 # -----------------------
-# --- main
+# --- Main
 # -----------------------
 
 #
-# Input validation
+# Parse options
 options = {
     project: nil,
     configuration: nil,
@@ -67,7 +75,7 @@ end
 parser.parse!
 
 #
-# Print configs
+# Print options
 puts
 puts '========== Configs =========='
 puts " * project: #{options[:project]}"
@@ -83,7 +91,7 @@ puts " * parallelization: #{options[:parallelization]}"
 puts " * other_parameters: #{options[:other_parameters]}"
 
 #
-# Validate inputs
+# Validate options
 fail_with_message('No project file found') unless options[:project] && File.exist?(options[:project])
 fail_with_message('configuration not specified') unless options[:configuration]
 fail_with_message('platform not specified') unless options[:platform]
@@ -93,32 +101,52 @@ fail_with_message('devices not specified') unless options[:devices]
 
 #
 # Main
-work_dir = ENV['BITRISE_SOURCE_DIR']
-result_log = File.join(work_dir, 'TestResult.xml')
-
 projects_to_test = []
 
 if File.extname(options[:project]) == '.sln'
-  projects = SolutionAnalyzer.new(options[:project]).collect_projects(options[:configuration], options[:platform])
-  projects.each do |project|
-    if project[:api] == MONOTOUCH_API_NAME || project[:api] == XAMARIN_IOS_API_NAME && project[:related_test_project]
-      test_project = ProjectAnalyzer.new(project[:related_test_project]).analyze(options[:configuration], options[:platform])
+  analyzer = SolutionAnalyzer.new(options[:project])
 
-      projects_to_test << {
-          project: project,
-          test_project: test_project
-      }
+  projects = analyzer.collect_projects(options[:configuration], options[:platform])
+  test_projects = analyzer.collect_test_projects(options[:configuration], options[:platform])
+
+  projects.each do |project|
+
+    next if project[:api] != MONOTOUCH_API_NAME && project[:api] != XAMARIN_IOS_API_NAME
+
+    test_projects.each do |test_project|
+      referred_project_ids = ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids
+      referred_project_ids.each do |project_id|
+        puts
+        puts "#{project_id} - #{project[:id]}"
+
+        if project_id == project[:id]
+          projects_to_test << {
+              project: project,
+              test_project: test_project,
+          }
+        end
+      end
     end
   end
 else
-  project = ProjectAnalyzer.new(options[:project]).analyze(options[:configuration], options[:platform])
-  if project[:related_test_project]
-    test_project = ProjectAnalyzer.new(project[:related_test_project]).analyze(options[:configuration], options[:platform])
+  analyzer = ProjectAnalyzer.new(options[:project])
+  project = analyzer.analyze(options[:configuration], options[:platform])
 
-    projects_to_test << {
-        project: project,
-        test_project: test_project
-    }
+  solution_path = analyzer.parse_solution_path
+  analyzer = SolutionAnalyzer.new(solution_path)
+
+  test_projects = analyzer.collect_test_projects(options[:configuration], options[:platform])
+
+  test_projects.each do |test_project|
+    referred_project_ids = ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids
+    referred_project_ids.each do |project_id|
+      if project_id == project[:id]
+        projects_to_test << {
+            project: project,
+            test_project: test_project,
+        }
+      end
+    end
   end
 end
 
@@ -180,7 +208,8 @@ projects_to_test.each do |project_to_test|
 
   #
   # Get test cloud path
-  test_cloud = Dir['**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
+  test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
+  puts "test_cloud: #{test_cloud}"
   fail_with_message('No test-cloud.exe found') unless test_cloud
   puts "  (i) test_cloud path: #{test_cloud}"
 
@@ -193,7 +222,7 @@ projects_to_test.each do |project_to_test|
   request += ' --async' if options[:async]
   request += " --series #{options[:series]}" if options[:series]
   request += " --dsym #{dsym_path}" if dsym_path
-  request += " --nunit-xml #{result_log}"
+  request += " --nunit-xml #{@result_log_path}"
   request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
   request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
   request += " #{options[:other_parameters]}" if options[:other_parameters]
@@ -201,21 +230,26 @@ projects_to_test.each do |project_to_test|
   puts
   puts "request: #{request}"
   system(request)
-  test_success = $?.success?
 
-  unless test_success
+  unless $?.success?
+    file = File.open(@result_log_path)
+    contents = file.read
+    file.close
+
     puts
-    puts "(i) The test log is available at: #{result_log}"
-    system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
+    puts "result: #{contents}"
+    puts
 
-    fail_with_message('test failed')
+    fail_with_message("#{command} -- failed")
   end
 end
 
+#
+# Set output envs
 puts
 puts '(i) The result is: succeeded'
-system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded') if work_dir
+system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
 
 puts
-puts "(i) The test log is available at: #{result_log}"
-system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if work_dir
+puts "(i) The test log is available at: #{@result_log_path}"
+system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
