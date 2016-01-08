@@ -26,8 +26,7 @@ workflows:
           but would break if the step is included in another `bitrise.yml`.
         run_if: true
         inputs:
-        - path: ./_tmp
-        - is_create_path: true
+        - path: $BITRISE_SOURCE_DIR
     - path::./:
         title: Step Test
         inputs:
