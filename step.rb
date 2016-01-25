@@ -1,5 +1,6 @@
 require 'optparse'
-require 'pathname'
+require 'fileutils'
+require 'tmpdir'
 
 require_relative 'xamarin-builder/builder'
 
@@ -10,6 +11,7 @@ require_relative 'xamarin-builder/builder'
 @mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
 @nuget = '/Library/Frameworks/Mono.framework/Versions/Current/bin/nuget'
 
+@deploy_dir = ENV['BITRISE_DEPLOY_DIR']
 @work_dir = ENV['BITRISE_SOURCE_DIR']
 @result_log_path = File.join(@work_dir, 'TestResult.xml')
 
@@ -34,6 +36,98 @@ def to_bool(value)
   fail_with_message("Invalid value for Boolean: \"#{value}\"")
 end
 
+def export_dsym(archive_path)
+  puts
+  puts '=> Exporting dSYM...'
+
+  archive_dsyms_folder = File.join(archive_path, 'dSYMs')
+  app_dsym_paths = Dir[File.join(archive_dsyms_folder, '*.app.dSYM')]
+  app_dsym_paths.each do |app_dsym_path|
+    puts " (i) .app.dSYM found: #{app_dsym_path}"
+  end
+
+  puts " (i) Found dSYM count: #{app_dsym_paths.count}"
+
+  if app_dsym_paths.count == 0
+    puts '* (i) **No dSYM found!**'
+  elsif app_dsym_paths.count > 1
+    puts '* (i) *More than one dSYM found!*'
+  else
+    app_dsym_path = app_dsym_paths[0]
+    puts "* dSYM found at: #{app_dsym_path}"
+
+    dsym_name = File.basename(app_dsym_path)
+    dsym_path = File.join(@deploy_dir, dsym_name)
+    FileUtils.cp_r(app_dsym_path, dsym_path)
+
+    # puts ''
+    # puts "(i) The dSYM is now available at: #{dsym_path}"
+    # system("envman add --key BITRISE_DSYM_PATH --value #{dsym_path}")
+    return dsym_path
+  end
+
+  nil
+end
+
+def export_xcarchive(export_options, path)
+  puts
+  puts '=> Exporting IPA...'
+  export_options_path = export_options
+  unless export_options_path
+    puts
+    puts ' => Generating export options...'
+    # Generate export options
+    #  Bundle install
+    current_dir = File.expand_path(File.dirname(__FILE__))
+    gemfile_path = File.join(current_dir, 'Gemfile')
+
+    bundle_install_command = "BUNDLE_GEMFILE=#{gemfile_path} bundle install"
+    puts
+    puts bundle_install_command
+    success = system(bundle_install_command)
+    fail_with_message('Failed to create export options (required gem install failed)') if success.nil? || !success
+
+
+    #  Bundle exec
+    export_options_path = File.join(@deploy_dir, 'export_options.plist')
+    export_options_generator = File.join(current_dir, 'generate_export_options.rb')
+
+    bundle_exec_command_params = ["BUNDLE_GEMFILE=#{gemfile_path} bundle exec ruby #{export_options_generator}"]
+    bundle_exec_command_params << "-o \"#{export_options_path}\""
+    bundle_exec_command_params << "-a \"#{path}\""
+    bundle_exec_command = bundle_exec_command_params.join(' ')
+    puts
+    puts bundle_exec_command
+    success = system(bundle_exec_command)
+    fail_with_message('Failed to create export options (required gem install failed)') if success.nil? || !success
+  end
+
+  # Export ipa
+  temp_dir = Dir.mktmpdir('_bitrise_')
+
+  export_command_params = ['xcodebuild -exportArchive']
+  export_command_params << "-archivePath \"#{path}\""
+  export_command_params << "-exportPath \"#{temp_dir}\""
+  export_command_params << "-exportOptionsPlist \"#{export_options_path}\""
+  export_command = export_command_params.join(' ')
+  puts
+  puts export_command
+  success = system(export_command)
+  fail_with_message('Failed to export IPA') if success.nil? || !success
+
+  temp_ipa_path = Dir[File.join(temp_dir, '*.ipa')].first
+  fail_with_message('No generated ipa found') unless temp_ipa_path
+
+  ipa_name = File.basename(temp_ipa_path)
+  ipa_path = File.join(@deploy_dir, ipa_name)
+  FileUtils.cp(temp_ipa_path, ipa_path)
+
+  # puts ''
+  # puts "(i) The IPA is now available at: #{ipa_path}"
+  # system("envman add --key BITRISE_IPA_PATH --value #{ipa_path}")
+  ipa_path
+end
+
 # -----------------------
 # --- Main
 # -----------------------
@@ -44,7 +138,6 @@ options = {
     project: nil,
     configuration: nil,
     platform: nil,
-    clean_build: true,
     api_key: nil,
     user: nil,
     devices: nil,
@@ -59,7 +152,6 @@ parser = OptionParser.new do |opts|
   opts.on('-s', '--project path', 'Project path') { |s| options[:project] = s unless s.to_s == '' }
   opts.on('-c', '--configuration config', 'Configuration') { |c| options[:configuration] = c unless c.to_s == '' }
   opts.on('-p', '--platform platform', 'Platform') { |p| options[:platform] = p unless p.to_s == '' }
-  opts.on('-i', '--clean build', 'Clean build') { |i| options[:clean_build] = false unless to_bool(i) }
   opts.on('-a', '--api key', 'Api key') { |a| options[:api_key] = a unless a.to_s == '' }
   opts.on('-u', '--user user', 'User') { |u| options[:user] = u unless u.to_s == '' }
   opts.on('-d', '--devices devices', 'Devices') { |d| options[:devices] = d unless d.to_s == '' }
@@ -81,7 +173,6 @@ puts '========== Configs =========='
 puts " * project: #{options[:project]}"
 puts " * configuration: #{options[:configuration]}"
 puts " * platform: #{options[:platform]}"
-puts " * clean_build: #{options[:clean_build]}"
 puts ' * api_key: ***'
 puts " * user: #{options[:user]}"
 puts " * devices: #{options[:devices]}"
@@ -101,146 +192,70 @@ fail_with_message('devices not specified') unless options[:devices]
 
 #
 # Main
-projects_to_test = []
 
-if File.extname(options[:project]) == '.sln'
-  analyzer = SolutionAnalyzer.new(options[:project])
+builder = Builder.new(options[:project], options[:configuration], options[:platform], nil)
+begin
+  builder.build_solution
+  builder.build
+  builder.build_test
+rescue
+  fail_with_message('Build failed')
+end
 
-  projects = analyzer.collect_projects(options[:configuration], options[:platform])
-  test_projects = analyzer.collect_test_projects(options[:configuration], options[:platform])
+output = builder.generated_files
 
-  projects.each do |project|
+puts
+puts "Generated outputs: #{output}"
+puts
 
-    next if project[:api] != MONOTOUCH_API_NAME && project[:api] != XAMARIN_IOS_API_NAME
+ipa_path = nil
+dsym_path = nil
+assembly_dir = nil
 
-    test_projects.each do |test_project|
-      referred_project_ids = ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids
-      referred_project_ids.each do |project_id|
-        puts
-        puts "#{project_id} - #{project[:id]}"
+output.each do |_, project_output|
+  if project_output[:xcarchive] && project_output[:uitests] && project_output[:uitests].length > 0
+    ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
+    dsym_path = export_dsym(project_output[:xcarchive])
 
-        if project_id == project[:id]
-          projects_to_test << {
-              project: project,
-              test_project: test_project,
-          }
-        end
-      end
-    end
-  end
-else
-  analyzer = ProjectAnalyzer.new(options[:project])
-  project = analyzer.analyze(options[:configuration], options[:platform])
-
-  solution_path = analyzer.parse_solution_path
-  analyzer = SolutionAnalyzer.new(solution_path)
-
-  test_projects = analyzer.collect_test_projects(options[:configuration], options[:platform])
-
-  test_projects.each do |test_project|
-    referred_project_ids = ProjectAnalyzer.new(test_project[:path]).parse_referred_project_ids
-    referred_project_ids.each do |project_id|
-      if project_id == project[:id]
-        projects_to_test << {
-            project: project,
-            test_project: test_project,
-        }
-      end
-    end
+    dll_path = project_output[:uitests][0]
+    assembly_dir = File.dirname(dll_path)
   end
 end
 
-fail 'No project and related test project found' if projects_to_test.count == 0
+#
+# Get test cloud path
+test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
+fail_with_message('No test-cloud.exe found') unless test_cloud
+puts "  (i) test_cloud path: #{test_cloud}"
 
-projects_to_test.each do |project_to_test|
-  project = project_to_test[:project]
-  test_project = project_to_test[:test_project]
+#
+# Build Request
+request = "mono #{test_cloud} submit \"#{ipa_path}\" #{options[:api_key]}"
+request += " --assembly-dir #{assembly_dir}"
+request += " --nunit-xml #{@result_log_path}"
+request += " --user #{options[:user]}"
+request += " --devices #{options[:devices]}"
+request += ' --async' if options[:async]
+request += " --dsym #{dsym_path}" if dsym_path
+request += " --series #{options[:series]}" if options[:series]
+request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
+request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
+request += " #{options[:other_parameters]}" if options[:other_parameters]
 
-  puts
-  puts " ** project to test: #{project[:path]}"
-  puts " ** related test project: #{test_project[:path]}"
+puts
+puts "request: #{request}"
+system(request)
 
-  builder = Builder.new(project[:path], project[:configuration], project[:platform])
-  test_builder = Builder.new(test_project[:path], test_project[:configuration], test_project[:platform])
-
-  if options[:clean_build]
-    builder.clean!
-    test_builder.clean!
-  end
-
-  #
-  # Build project
-  puts
-  puts "==> Building project: #{project[:path]}"
-
-  built_projects = builder.build!
-
-  ipa_path = ''
-  dsym_path = ''
-
-  built_projects.each do |built_project|
-    if built_project[:api] == MONOTOUCH_API_NAME || built_project[:api] == XAMARIN_IOS_API_NAME && built_project[:build_ipa]
-      ipa_path = builder.export_ipa(built_project[:output_path])
-      puts "  (i) ipa_path: #{ipa_path}"
-
-      dsym_path = builder.export_dsym(built_project[:output_path])
-      puts "  (i) dsym_path: #{dsym_path}"
-    end
-  end
-
-  #
-  # Build UITest
-  puts
-  puts "==> Building test project: #{test_project}"
-
-  built_test_projects = test_builder.build!
-
-  assembly_dir = ''
-
-  built_test_projects.each do |built_test_project|
-    if built_test_project[:api] == XAMARIN_UITEST_API
-      dll_path = test_builder.export_dll(built_test_project[:output_path])
-      assembly_dir = File.dirname(dll_path)
-      puts "  (i) dll_path: #{dll_path}"
-    end
-
-  end
-
-  #
-  # Get test cloud path
-  test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
-  fail_with_message('No test-cloud.exe found') unless test_cloud
-  puts "  (i) test_cloud path: #{test_cloud}"
-
-  #
-  # Build Request
-  request = "mono #{test_cloud} submit #{ipa_path} #{options[:api_key]}"
-  request += " --user #{options[:user]}"
-  request += " --assembly-dir #{assembly_dir}"
-  request += " --devices #{options[:devices]}"
-  request += ' --async' if options[:async]
-  request += " --series #{options[:series]}" if options[:series]
-  request += " --dsym #{dsym_path}" if dsym_path
-  request += " --nunit-xml #{@result_log_path}"
-  request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
-  request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
-  request += " #{options[:other_parameters]}" if options[:other_parameters]
+unless $?.success?
+  file = File.open(@result_log_path)
+  contents = file.read
+  file.close
 
   puts
-  puts "request: #{request}"
-  system(request)
+  puts "result: #{contents}"
+  puts
 
-  unless $?.success?
-    file = File.open(@result_log_path)
-    contents = file.read
-    file.close
-
-    puts
-    puts "result: #{contents}"
-    puts
-
-    fail_with_message("#{command} -- failed")
-  end
+  fail_with_message("#{request} -- failed")
 end
 
 #
