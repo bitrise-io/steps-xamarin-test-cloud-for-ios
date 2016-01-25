@@ -6,7 +6,6 @@ ruby "${THIS_SCRIPTDIR}/step.rb" \
   -s "${xamarin_project}" \
   -c "${xamarin_configuration}" \
   -p "${xamarin_platform}" \
-  -i "${is_clean_build}" \
   -u "${xamarin_user}" \
   -a "${test_cloud_api_key}" \
   -d "${test_cloud_devices}" \

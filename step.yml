@@ -19,9 +19,9 @@ run_if: ""
 inputs:
   - xamarin_project: $BITRISE_PROJECT_PATH
     opts:
-      title: Path to Xamarin Project
+      title: Path to Xamarin Solution
       description: |
-        Path to Xamarin Project
+        Path to Xamarin Solution
       is_required: true
       is_expand: true
   - xamarin_configuration: Debug
@@ -38,15 +38,6 @@ inputs:
         Xamarin platform
       is_required: true
       is_expand: true
-  - is_clean_build: "yes"
-    opts:
-      title: "Do a clean before the archive?"
-      value_options:
-        - "yes"
-        - "no"
-      is_required: true
-      is_expand: true
-      is_dont_change_value: false
   - xamarin_user:
     opts:
       title: "User email"
@@ -105,6 +96,7 @@ inputs:
       is_required: false
       is_dont_change_value: false
       value_options:
+      - none
       - by_test_fixture
       - by_test_chunk
   - other_parameters:
