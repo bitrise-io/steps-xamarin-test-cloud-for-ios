@@ -18,7 +18,7 @@ REGEX_SOLUTION_PROJECTS = /Project\(\"(?<solution_id>[^\"]*)\"\) = \"(?<project_
 REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG_START = /GlobalSection\(SolutionConfigurationPlatforms\) = preSolution/i
 REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG = /^\s*(?<config>[^|]*)\|(?<platform>[^|]*) =/i
 REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG_START = /GlobalSection\(ProjectConfigurationPlatforms\) = postSolution/i
-REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG = /(?<project_id>{[^}]*}).(?<config>(\w|\s)*)\|(?<platform>(\w|\s)*)\.Build.* = (?<mapped_config>(\w|\s)*)\|(?<mapped_platform>(\w|\s)*)/i
+REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG = /(?<project_id>{[^}]*}).(?<config>.*)\|(?<platform>.*)\.Build.* = (?<mapped_config>.*)\|(?<mapped_platform>(.)*)/i
 REGEX_SOLUTION_GLOBAL_CONFIG_END = /EndGlobalSection/i
 
 REGEX_PROJECT_GUID = /<ProjectGuid>(?<project_id>.*)<\/ProjectGuid>/i
@@ -27,7 +27,7 @@ REGEX_PROJECT_ASSEMBLY_NAME = /<AssemblyName>(?<assembly_name>.*)<\/AssemblyName
 REGEX_PROJECT_ANDROID_MANIFEST = /<AndroidManifest>(?<manifest_path>.*)<\/AndroidManifest>/i
 REGEX_PROJECT_ANDROID_PACKAGE_NAME = /<manifest.*package=\"(?<package_name>.*)\">/i
 REGEX_PROJECT_MTOUCH_ARCH = /<MtouchArch>(?<arch>.*)<\/MtouchArch>/i
-REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(Configuration\)\|\$\(Platform\)' == '(?<config>(\w|\s)*)\|(?<platform>(\w|\s)*)' \">/i
+REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION = /<PropertyGroup Condition=\" '\$\(Configuration\)\|\$\(Platform\)' == '(?<config>.*)\|(?<platform>.*)' \">/i
 REGEX_PROJECT_PROPERTY_GROUP_END = /<\/PropertyGroup>/i
 REGEX_PROJECT_OUTPUT_PATH = /<OutputPath>(?<output_path>.*)<\/OutputPath>/i
 REGEX_PROJECT_IPA_PACKAGE = /<IpaPackageName>/i
@@ -152,6 +152,7 @@ class Analyzer
           'build',
           "\"-c:#{project_configuration}\"",
           @solution[:path],
+          "-p:#{project[:name]}"
       ].join(' ')
     end
 
@@ -315,7 +316,9 @@ class Analyzer
       if parse_solution_configs
         match = line.match(REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 2
-          (@solution[:configs] ||= []) << "#{match.captures[0]}|#{match.captures[1].delete(' ')}"
+          configuration =  match.captures[0].strip.delete(' ')
+          platform = match.captures[1].strip.delete(' ')
+          (@solution[:configs] ||= []) << "#{configuration}|#{platform}"
         end
       end
 
@@ -330,9 +333,13 @@ class Analyzer
         match = line.match(REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 5
           project_id = match.captures[0]
+          solution_configuration = match.captures[1].strip.delete(' ')
+          solution_platform = match.captures[2].strip.delete(' ')
+          project_configuration = match.captures[3].strip.delete(' ')
+          project_platform = match.captures[4].strip.delete(' ')
 
           project = project_with_id(project_id)
-          (project[:mappings] ||= {})["#{match.captures[1]}|#{match.captures[2].delete(' ')}"] = "#{match.captures[3]}|#{match.captures[4].strip.delete(' ')}"
+          (project[:mappings] ||= {})["#{solution_configuration}|#{solution_platform}"] = "#{project_configuration}|#{project_platform}"
         end
       end
 
