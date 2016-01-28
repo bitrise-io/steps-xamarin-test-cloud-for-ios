@@ -193,7 +193,7 @@ fail_with_message('devices not specified') unless options[:devices]
 #
 # Main
 
-builder = Builder.new(options[:project], options[:configuration], options[:platform], nil)
+builder = Builder.new(options[:project], options[:configuration], options[:platform], 'ios')
 begin
   builder.build
   builder.build_test
