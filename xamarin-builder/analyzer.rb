@@ -111,18 +111,10 @@ class Analyzer
           sign_android = project[:configs][project_configuration][:sign_android]
 
           build_commands << [
-              MDTOOL_PATH,
-              'build',
-              "\"-c:#{project_configuration}\"",
-              @solution[:path],
-              "-p:#{project[:name]}"
-          ].join(' ')
-
-          build_commands << [
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
-              "/p:Configuration=#{project_configuration.split('|').first}",
-              "/p:Platform=#{project_configuration.split('|').last}",
+              "/p:Configuration=\"#{project_configuration.split('|').first}\"",
+              "/p:Platform=\"#{project_configuration.split('|').last}\"",
               project[:path]
           ].join(' ')
         else
@@ -316,8 +308,8 @@ class Analyzer
       if parse_solution_configs
         match = line.match(REGEX_SOLUTION_GLOBAL_SOLUTION_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 2
-          configuration =  match.captures[0].strip.delete(' ')
-          platform = match.captures[1].strip.delete(' ')
+          configuration =  match.captures[0].strip
+          platform = match.captures[1].strip
           (@solution[:configs] ||= []) << "#{configuration}|#{platform}"
         end
       end
@@ -333,10 +325,11 @@ class Analyzer
         match = line.match(REGEX_SOLUTION_GLOBAL_PROJECT_CONFIG)
         if match != nil && match.captures != nil && match.captures.count == 5
           project_id = match.captures[0]
-          solution_configuration = match.captures[1].strip.delete(' ')
-          solution_platform = match.captures[2].strip.delete(' ')
-          project_configuration = match.captures[3].strip.delete(' ')
-          project_platform = match.captures[4].strip.delete(' ')
+          solution_configuration = match.captures[1].strip
+          solution_platform = match.captures[2].strip
+          project_configuration = match.captures[3].strip
+          project_platform = match.captures[4].strip
+          project_platform = "AnyCPU" if project_platform.eql? 'Any CPU' # Fix MS bug
 
           project = project_with_id(project_id)
           (project[:mappings] ||= {})["#{solution_configuration}|#{solution_platform}"] = "#{project_configuration}|#{project_platform}"
@@ -413,7 +406,9 @@ class Analyzer
 
       match = line.match(REGEX_PROJECT_PROPERTY_GROUP_WITH_CONDITION)
       if match != nil && match.captures != nil && match.captures.count == 2
-        project_config = "#{match.captures[0]}|#{match.captures[1].delete(' ')}"
+        configuration = match.captures[0].strip
+        platform = match.captures[1].strip
+        project_config = "#{configuration}|#{platform}"
 
         (project[:configs] ||= {})[project_config] = {}
       end
