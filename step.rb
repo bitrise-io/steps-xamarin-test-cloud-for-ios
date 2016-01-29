@@ -197,8 +197,8 @@ builder = Builder.new(options[:project], options[:configuration], options[:platf
 begin
   builder.build
   builder.build_test
-rescue
-  fail_with_message('Build failed')
+rescue => ex
+  fail_with_message("Build failed: #{ex}")
 end
 
 output = builder.generated_files
