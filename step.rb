@@ -8,9 +8,6 @@ require_relative 'xamarin-builder/builder'
 # --- Constants
 # -----------------------
 
-@mdtool = "\"/Applications/Xamarin Studio.app/Contents/MacOS/mdtool\""
-@nuget = '/Library/Frameworks/Mono.framework/Versions/Current/bin/nuget'
-
 @deploy_dir = ENV['BITRISE_DEPLOY_DIR']
 @work_dir = ENV['BITRISE_SOURCE_DIR']
 @result_log_path = File.join(@work_dir, 'TestResult.xml')
