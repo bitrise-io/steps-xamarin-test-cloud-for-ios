@@ -9,8 +9,7 @@ require_relative 'xamarin-builder/builder'
 # -----------------------
 
 @deploy_dir = ENV['BITRISE_DEPLOY_DIR']
-@work_dir = ENV['BITRISE_SOURCE_DIR']
-@result_log_path = File.join(@work_dir, 'TestResult.xml')
+@result_log_path = './TestResult.xml'
 
 # -----------------------
 # --- Functions
@@ -204,62 +203,60 @@ puts
 puts "Generated outputs: #{output}"
 puts
 
-ipa_path = nil
-dsym_path = nil
-assembly_dir = nil
-
 output.each do |_, project_output|
   if project_output[:xcarchive] && project_output[:uitests] && project_output[:uitests].length > 0
     ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
     dsym_path = export_dsym(project_output[:xcarchive])
 
-    dll_path = project_output[:uitests][0]
-    assembly_dir = File.dirname(dll_path)
+    raise 'No UITests found' if project_output[:uitests].size == 0
+    project_output[:uitests].each do |dll_path|
+      assembly_dir = File.dirname(dll_path)
+
+      #
+      # Get test cloud path
+      test_cloud = Dir['./**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
+      fail_with_message('No test-cloud.exe found') unless test_cloud
+      puts "  (i) test_cloud path: #{test_cloud}"
+
+      #
+      # Build Request
+      request = "mono #{test_cloud} submit \"#{ipa_path}\" #{options[:api_key]}"
+      request += " --assembly-dir #{assembly_dir}"
+      request += " --nunit-xml #{@result_log_path}"
+      request += " --user #{options[:user]}"
+      request += " --devices #{options[:devices]}"
+      request += ' --async' if options[:async]
+      request += " --dsym #{dsym_path}" if dsym_path
+      request += " --series #{options[:series]}" if options[:series]
+      request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
+      request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
+      request += " #{options[:other_parameters]}" if options[:other_parameters]
+
+      puts
+      puts "\e[32m#{request}\e[0m"
+      system(request)
+
+      unless $?.success?
+        file = File.open(@result_log_path)
+        contents = file.read
+        file.close
+
+        puts
+        puts "result: #{contents}"
+        puts
+
+        fail_with_message("#{request} -- failed")
+      end
+
+      #
+      # Set output envs
+      puts
+      puts '(i) The result is: succeeded'
+      system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
+
+      puts
+      puts "(i) The test log is available at: #{@result_log_path}"
+      system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
+    end
   end
 end
-
-#
-# Get test cloud path
-test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
-fail_with_message('No test-cloud.exe found') unless test_cloud
-puts "  (i) test_cloud path: #{test_cloud}"
-
-#
-# Build Request
-request = "mono #{test_cloud} submit \"#{ipa_path}\" #{options[:api_key]}"
-request += " --assembly-dir #{assembly_dir}"
-request += " --nunit-xml #{@result_log_path}"
-request += " --user #{options[:user]}"
-request += " --devices #{options[:devices]}"
-request += ' --async' if options[:async]
-request += " --dsym #{dsym_path}" if dsym_path
-request += " --series #{options[:series]}" if options[:series]
-request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
-request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
-request += " #{options[:other_parameters]}" if options[:other_parameters]
-
-puts
-puts "request: #{request}"
-system(request)
-
-unless $?.success?
-  file = File.open(@result_log_path)
-  contents = file.read
-  file.close
-
-  puts
-  puts "result: #{contents}"
-  puts
-
-  fail_with_message("#{request} -- failed")
-end
-
-#
-# Set output envs
-puts
-puts '(i) The result is: succeeded'
-system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
-
-puts
-puts "(i) The test log is available at: #{@result_log_path}"
-system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path

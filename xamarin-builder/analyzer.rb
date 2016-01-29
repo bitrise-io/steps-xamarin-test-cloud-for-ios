@@ -94,10 +94,12 @@ class Analyzer
           archs = project[:configs][project_configuration][:mtouch_arch]
           generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
+          mdtool_configuration = project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
+
           build_commands << [
               MDTOOL_PATH,
               generate_archive ? 'archive' : 'build',
-              "\"-c:#{project_configuration}\"",
+              "\"-c:#{mdtool_configuration}\"",
               "\"#{@solution[:path]}\"",
               "\"-p:#{project[:name]}\""
           ].join(' ')
@@ -114,9 +116,10 @@ class Analyzer
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
               "/p:Configuration=\"#{project_configuration.split('|').first}\"",
-              "/p:Platform=\"#{project_configuration.split('|').last}\"",
               "\"#{project[:path]}\""
-          ].join(' ')
+          ]
+          build_commands << project_configuration.split('|').last unless project_configuration.split('|').last.eql?("AnyCPU")
+          build_commands.join(' ')
         else
           next
       end
@@ -139,10 +142,12 @@ class Analyzer
         next
       end
 
+      mdtool_configuration = project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
+
       build_command = [
           MDTOOL_PATH,
           'build',
-          "\"-c:#{project_configuration}\"",
+          "\"-c:#{mdtool_configuration}\"",
           "\"#{@solution[:path]}\"",
           "\"-p:#{project[:name]}\""
       ].join(' ')
@@ -178,15 +183,11 @@ class Analyzer
           if generate_archive
             full_output_path = latest_archive_path(project[:name])
 
-            next unless full_output_path
-
-            outputs_hash[project[:id]][:xcarchive] = full_output_path
+            outputs_hash[project[:id]][:xcarchive] = full_output_path if full_output_path
           else
             full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
 
-            next unless full_output_path
-
-            outputs_hash[project[:id]][:app] = full_output_path
+            outputs_hash[project[:id]][:app] = full_output_path if full_output_path
           end
 
           # Search for test dll
@@ -197,7 +198,6 @@ class Analyzer
             next unless test_project
 
             test_project_configuration = test_project[:mappings][configuration]
-
             next unless test_project_configuration
 
             test_project_path = test_project[:path]
@@ -207,7 +207,7 @@ class Analyzer
 
             test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
 
-            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
+            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path if test_full_output_path
           end
         when 'android'
           next unless project_type_filter.include? 'android'
@@ -225,10 +225,8 @@ class Analyzer
           full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
           full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
 
-          next unless full_output_path
-
           outputs_hash[project[:id]] = {}
-          outputs_hash[project[:id]][:apk] = full_output_path
+          outputs_hash[project[:id]][:apk] = full_output_path if full_output_path
 
           # Search for test dll
           next unless project[:uitest_projects]
@@ -238,7 +236,6 @@ class Analyzer
             next unless test_project
 
             test_project_configuration = test_project[:mappings][configuration]
-
             next unless test_project_configuration
 
             test_project_path = test_project[:path]
@@ -248,7 +245,7 @@ class Analyzer
 
             test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
 
-            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path
+            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path if test_full_output_path
           end
         else
           next
