@@ -34,32 +34,20 @@ end
 
 def export_dsym(archive_path)
   puts
-  puts '=> Exporting dSYM...'
+  puts "\e[34Exporting dSYM from archive at path #{archive_path}\e[0m"
 
   archive_dsyms_folder = File.join(archive_path, 'dSYMs')
   app_dsym_paths = Dir[File.join(archive_dsyms_folder, '*.app.dSYM')]
   app_dsym_paths.each do |app_dsym_path|
-    puts " (i) .app.dSYM found: #{app_dsym_path}"
+    puts "dSym found at path: #{app_dsym_path}"
   end
 
-  puts " (i) Found dSYM count: #{app_dsym_paths.count}"
-
   if app_dsym_paths.count == 0
-    puts '* (i) **No dSYM found!**'
+    puts "\e[33mNo dSym found\e[0m"
   elsif app_dsym_paths.count > 1
-    puts '* (i) *More than one dSYM found!*'
+    puts "\e[33mMultiple dSyms found\e[0m"
   else
-    app_dsym_path = app_dsym_paths[0]
-    puts "* dSYM found at: #{app_dsym_path}"
-
-    dsym_name = File.basename(app_dsym_path)
-    dsym_path = File.join(@deploy_dir, dsym_name)
-    FileUtils.cp_r(app_dsym_path, dsym_path)
-
-    # puts ''
-    # puts "(i) The dSYM is now available at: #{dsym_path}"
-    # system("envman add --key BITRISE_DSYM_PATH --value #{dsym_path}")
-    return dsym_path
+    return app_dsym_paths.first
   end
 
   nil
@@ -67,49 +55,53 @@ end
 
 def export_xcarchive(export_options, path)
   puts
-  puts '=> Exporting IPA...'
+  puts "\e[34mExporting IPA from archive at path #{path}\e[0m"
   export_options_path = export_options
   unless export_options_path
     puts
-    puts ' => Generating export options...'
-    # Generate export options
+    puts 'Generating export options...'
+
     #  Bundle install
     current_dir = File.expand_path(File.dirname(__FILE__))
     gemfile_path = File.join(current_dir, 'Gemfile')
 
-    bundle_install_command = "BUNDLE_GEMFILE=#{gemfile_path} bundle install"
+    bundle_install_command = [
+      "BUNDLE_GEMFILE=#{gemfile_path}",
+      "bundle install"
+    ]
     puts
-    puts bundle_install_command
-    success = system(bundle_install_command)
-    fail_with_message('Failed to create export options (required gem install failed)') if success.nil? || !success
-
+    puts "\e[34m#{bundle_install_command.join(' ')}\e[0m"
+    success = system(bundle_install_command.join(' '))
+    fail_with_message('Failed to create export options (required gem install failed)') unless $?.success?
 
     #  Bundle exec
     export_options_path = File.join(@deploy_dir, 'export_options.plist')
     export_options_generator = File.join(current_dir, 'generate_export_options.rb')
 
-    bundle_exec_command_params = ["BUNDLE_GEMFILE=#{gemfile_path} bundle exec ruby #{export_options_generator}"]
-    bundle_exec_command_params << "-o \"#{export_options_path}\""
-    bundle_exec_command_params << "-a \"#{path}\""
-    bundle_exec_command = bundle_exec_command_params.join(' ')
+    bundle_exec_command = ["BUNDLE_GEMFILE=#{gemfile_path} bundle exec ruby #{export_options_generator}"]
+    bundle_exec_command << "-o \"#{export_options_path}\""
+    bundle_exec_command << "-a \"#{path}\""
+
     puts
-    puts bundle_exec_command
-    success = system(bundle_exec_command)
-    fail_with_message('Failed to create export options (required gem install failed)') if success.nil? || !success
+    puts "\e[34m#{bundle_exec_command.join(' ')}\e[0m"
+    success = system(bundle_exec_command.join(' '))
+    fail_with_message('Failed to create export options (required gem install failed)') unless $?.success?
   end
 
   # Export ipa
   temp_dir = Dir.mktmpdir('_bitrise_')
 
-  export_command_params = ['xcodebuild -exportArchive']
-  export_command_params << "-archivePath \"#{path}\""
-  export_command_params << "-exportPath \"#{temp_dir}\""
-  export_command_params << "-exportOptionsPlist \"#{export_options_path}\""
-  export_command = export_command_params.join(' ')
+  export_command = [
+    "xcodebuild",
+    "-exportArchive",
+    "-archivePath \"#{path}\"",
+    "-exportPath \"#{temp_dir}\"",
+    "-exportOptionsPlist \"#{export_options_path}\""
+  ]
   puts
-  puts export_command
-  success = system(export_command)
-  fail_with_message('Failed to export IPA') if success.nil? || !success
+  puts "\e[34m#{export_command.join(' ')}\e[0m"
+  success = system(export_command.join(' '))
+  fail_with_message('Failed to export IPA') unless $?.success?
 
   temp_ipa_path = Dir[File.join(temp_dir, '*.ipa')].first
   fail_with_message('No generated ipa found') unless temp_ipa_path
@@ -118,9 +110,6 @@ def export_xcarchive(export_options, path)
   ipa_path = File.join(@deploy_dir, ipa_name)
   FileUtils.cp(temp_ipa_path, ipa_path)
 
-  # puts ''
-  # puts "(i) The IPA is now available at: #{ipa_path}"
-  # system("envman add --key BITRISE_IPA_PATH --value #{ipa_path}")
   ipa_path
 end
 
@@ -197,13 +186,7 @@ rescue => ex
   fail_with_message("Build failed: #{ex}")
 end
 
-output = builder.generated_files
-
-puts
-puts "Generated outputs: #{output}"
-puts
-
-output.each do |_, project_output|
+builder.generated_files.each do |_, project_output|
   if project_output[:xcarchive] && project_output[:uitests] && project_output[:uitests].length > 0
     ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
     dsym_path = export_dsym(project_output[:xcarchive])
@@ -216,25 +199,28 @@ output.each do |_, project_output|
       # Get test cloud path
       test_cloud = Dir['./**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
       fail_with_message('No test-cloud.exe found') unless test_cloud
-      puts "  (i) test_cloud path: #{test_cloud}"
 
       #
       # Build Request
-      request = "mono #{test_cloud} submit \"#{ipa_path}\" #{options[:api_key]}"
-      request += " --assembly-dir #{assembly_dir}"
-      request += " --nunit-xml #{@result_log_path}"
-      request += " --user #{options[:user]}"
-      request += " --devices #{options[:devices]}"
-      request += ' --async' if options[:async]
-      request += " --dsym #{dsym_path}" if dsym_path
-      request += " --series #{options[:series]}" if options[:series]
-      request += ' --fixture-chunk' if options[:parallelization] == 'by_test_fixture'
-      request += ' --test-chunk' if options[:parallelization] == 'by_test_chunk'
-      request += " #{options[:other_parameters]}" if options[:other_parameters]
+      request = [
+        "mono \"#{test_cloud}\"",
+        "submit \"#{ipa_path}\"",
+        options[:api_key],
+        "--assembly-dir \"#{assembly_dir}\"",
+        "--nunit-xml \"#{@result_log_path}\"",
+        "--user #{options[:user]}",
+        "--devices \"#{options[:devices]}\""
+      ]
+      request << '--async' if options[:async]
+      request << "--dsym \"#{dsym_path}\"" if dsym_path
+      request << "--series \"#{options[:series]}\"" if options[:series]
+      request << '--fixture-chunk' if options[:parallelization] == 'by_test_fixture'
+      request << '--test-chunk' if options[:parallelization] == 'by_test_chunk'
+      request << "#{options[:other_parameters]}" if options[:other_parameters]
 
       puts
-      puts "\e[32m#{request}\e[0m"
-      system(request)
+      puts "\e[34m#{request.join(' ')}\e[0m"
+      system(request.join(' '))
 
       unless $?.success?
         file = File.open(@result_log_path)
@@ -242,20 +228,17 @@ output.each do |_, project_output|
         file.close
 
         puts
-        puts "result: #{contents}"
-        puts
-
+        puts contents
         fail_with_message("#{request} -- failed")
       end
 
       #
       # Set output envs
       puts
-      puts '(i) The result is: succeeded'
+      puts "\e[32mXamarin Test Cloud deploy succeeded\e[0m"
       system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
 
-      puts
-      puts "(i) The test log is available at: #{@result_log_path}"
+      puts "The test log is available at: #{@result_log_path}"
       system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
     end
   end

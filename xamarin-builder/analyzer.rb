@@ -86,10 +86,7 @@ class Analyzer
         when 'ios'
           next unless project_type_filter.include? 'ios'
           next unless project[:output_type].eql?('exe')
-          unless project_configuration
-            puts "Skipping: No configuration mapping found for (#{configuration}) in project #{project[:name]}"
-            next
-          end
+          next unless project_configuration
 
           archs = project[:configs][project_configuration][:mtouch_arch]
           generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
@@ -106,10 +103,8 @@ class Analyzer
         when 'android'
           next unless project_type_filter.include? 'android'
           next unless project[:android_application]
-          unless project_configuration
-            puts "Skipping: No configuration mapping found for (#{configuration}) in project #{project[:name]}"
-            next
-          end
+          next unless project_configuration
+
           sign_android = project[:configs][project_configuration][:sign_android]
 
           build_commands << [
@@ -137,10 +132,7 @@ class Analyzer
       project_configuration = project[:mappings][configuration]
 
       next unless project[:api] == 'uitest'
-      unless project_configuration
-        puts "Skipping: No configuration mapping found for (#{configuration}) in project #{project[:name]}"
-        next
-      end
+      next unless project_configuration
 
       mdtool_configuration = project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
 
@@ -297,8 +289,6 @@ class Analyzer
               path: project_path,
               id: match.captures[3],
           }
-        else
-          puts "Warning: Skipping #{project_path}: directory or not found on file system"
         end
       end
 
