@@ -91,12 +91,10 @@ class Analyzer
           archs = project[:configs][project_configuration][:mtouch_arch]
           generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
-          mdtool_configuration = project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
-
           build_commands << [
               MDTOOL_PATH,
               generate_archive ? 'archive' : 'build',
-              "\"-c:#{mdtool_configuration}\"",
+              "\"-c:#{mdtool_configuration(project_configuration)}\"",
               "\"#{@solution[:path]}\"",
               "\"-p:#{project[:name]}\""
           ].join(' ')
@@ -107,14 +105,15 @@ class Analyzer
 
           sign_android = project[:configs][project_configuration][:sign_android]
 
-          build_commands << [
+          build_command = [
               'xbuild',
               sign_android ? '/t:SignAndroidPackage' : '/t:PackageForAndroid',
-              "/p:Configuration=\"#{project_configuration.split('|').first}\"",
-              "\"#{project[:path]}\""
+              "/p:Configuration=\"#{project_configuration.split('|').first}\""
           ]
-          build_commands << project_configuration.split('|').last unless project_configuration.split('|').last.eql?("AnyCPU")
-          build_commands.join(' ')
+          build_command << project_configuration.split('|').last unless project_configuration.split('|').last.eql?("AnyCPU")
+          build_command << "\"#{project[:path]}\""
+
+          build_commands << build_command.join(' ')
         else
           next
       end
@@ -134,12 +133,10 @@ class Analyzer
       next unless project[:api] == 'uitest'
       next unless project_configuration
 
-      mdtool_configuration = project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
-
       build_command = [
           MDTOOL_PATH,
           'build',
-          "\"-c:#{mdtool_configuration}\"",
+          "\"-c:#{mdtool_configuration(project_configuration)}\"",
           "\"#{@solution[:path]}\"",
           "\"-p:#{project[:name]}\""
       ].join(' ')
@@ -158,89 +155,69 @@ class Analyzer
       project_configuration = project[:mappings][configuration]
 
       case project[:api]
-        when 'ios'
-          next unless project_type_filter.include? 'ios'
-          next unless project[:output_type].eql?('exe')
-          next unless project_configuration
+      when 'ios'
+        next unless project_type_filter.include? 'ios'
+        next unless project[:output_type].eql?('exe')
+        next unless project_configuration
 
-          archs = project[:configs][project_configuration][:mtouch_arch]
-          generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
+        archs = project[:configs][project_configuration][:mtouch_arch]
+        generate_archive = archs && archs.select { |x| x.downcase.start_with? 'arm' }.count == archs.count
 
-          project_path = project[:path]
-          project_dir = File.dirname(project_path)
-          rel_output_dir = project[:configs][project_configuration][:output_path]
-          full_output_dir = File.join(project_dir, rel_output_dir)
+        project_path = project[:path]
+        project_dir = File.dirname(project_path)
+        rel_output_dir = project[:configs][project_configuration][:output_path]
+        full_output_dir = File.join(project_dir, rel_output_dir)
 
-          outputs_hash[project[:id]] = {}
-          if generate_archive
-            full_output_path = latest_archive_path(project[:name])
+        outputs_hash[project[:id]] = {}
+        if generate_archive
+          full_output_path = latest_archive_path(project[:name])
 
-            outputs_hash[project[:id]][:xcarchive] = full_output_path if full_output_path
-          else
-            full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
-
-            outputs_hash[project[:id]][:app] = full_output_path if full_output_path
-          end
-
-          # Search for test dll
-          next unless project[:uitest_projects]
-
-          project[:uitest_projects].each do |test_project_id|
-            test_project = project_with_id(test_project_id)
-            next unless test_project
-
-            test_project_configuration = test_project[:mappings][configuration]
-            next unless test_project_configuration
-
-            test_project_path = test_project[:path]
-            test_project_dir = File.dirname(test_project_path)
-            test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
-            test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
-
-            test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
-
-            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path if test_full_output_path
-          end
-        when 'android'
-          next unless project_type_filter.include? 'android'
-          next unless project[:android_application]
-          next unless project_configuration
-
-          project_path = project[:path]
-          project_dir = File.dirname(project_path)
-          rel_output_dir = project[:configs][project_configuration][:output_path]
-          full_output_dir = File.join(project_dir, rel_output_dir)
-
-          package_name = android_package_name(project[:android_manifest_path])
-
-          full_output_path = nil
-          full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
-          full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
-
-          outputs_hash[project[:id]] = {}
-          outputs_hash[project[:id]][:apk] = full_output_path if full_output_path
-
-          # Search for test dll
-          next unless project[:uitest_projects]
-
-          project[:uitest_projects].each do |test_project_id|
-            test_project = project_with_id(test_project_id)
-            next unless test_project
-
-            test_project_configuration = test_project[:mappings][configuration]
-            next unless test_project_configuration
-
-            test_project_path = test_project[:path]
-            test_project_dir = File.dirname(test_project_path)
-            test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
-            test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
-
-            test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
-
-            (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path if test_full_output_path
-          end
+          outputs_hash[project[:id]][:xcarchive] = full_output_path if full_output_path
         else
-          next
+          full_output_path = export_artifact(project[:assembly_name], full_output_dir, '.app')
+
+          outputs_hash[project[:id]][:app] = full_output_path if full_output_path
+        end
+      when 'android'
+        next unless project_type_filter.include? 'android'
+        next unless project[:android_application]
+        next unless project_configuration
+
+        project_path = project[:path]
+        project_dir = File.dirname(project_path)
+        rel_output_dir = project[:configs][project_configuration][:output_path]
+        full_output_dir = File.join(project_dir, rel_output_dir)
+
+        package_name = android_package_name(project[:android_manifest_path])
+
+        full_output_path = nil
+        full_output_path = export_artifact(package_name, full_output_dir, '.apk') if package_name
+        full_output_path = export_artifact('*', full_output_dir, '.apk') unless full_output_path
+
+        outputs_hash[project[:id]] = {}
+        outputs_hash[project[:id]][:apk] = full_output_path if full_output_path
+      else
+        next
+      end
+
+      # Search for test dll
+      next unless project[:uitest_projects]
+
+      project[:uitest_projects].each do |test_project_id|
+        test_project = project_with_id(test_project_id)
+        next unless test_project
+
+        test_project_configuration = test_project[:mappings][configuration]
+        next unless test_project_configuration
+
+        test_project_path = test_project[:path]
+        test_project_dir = File.dirname(test_project_path)
+        test_rel_output_dir = test_project[:configs][test_project_configuration][:output_path]
+        test_full_output_dir = File.join(test_project_dir, test_rel_output_dir)
+
+        test_full_output_path = export_artifact(test_project[:assembly_name], test_full_output_dir, '.dll')
+
+        (outputs_hash[project[:id]][:uitests] ||= []) << test_full_output_path if test_full_output_path
       end
     end
 
@@ -442,6 +419,10 @@ class Analyzer
         (referred_project[:uitest_projects] ||= []) << project[:id]
       end
     end
+  end
+
+  def mdtool_configuration(project_configuration)
+     project_configuration.split('|').last.eql?("AnyCPU") ? project_configuration.split('|').first : project_configuration
   end
 
   def project_with_id(id)
