@@ -195,10 +195,13 @@ builder.generated_files.each do |_, project_output|
     project_output[:uitests].each do |dll_path|
       assembly_dir = File.dirname(dll_path)
 
+      puts ""
+      puts "\e[34mUploading #{ipa_path} with #{dll_path}"
+
       #
       # Get test cloud path
       test_cloud = Dir['./**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
-      fail_with_message('No test-cloud.exe found') unless test_cloud
+      fail_with_message("Can't find test-cloud.exe") unless test_cloud
 
       #
       # Build Request
@@ -218,8 +221,7 @@ builder.generated_files.each do |_, project_output|
       request << '--test-chunk' if options[:parallelization] == 'by_test_chunk'
       request << "#{options[:other_parameters]}" if options[:other_parameters]
 
-      puts
-      puts "\e[34m#{request.join(' ')}\e[0m"
+      puts "  #{request.join(' ')}"
       system(request.join(' '))
 
       unless $?.success?
@@ -229,17 +231,16 @@ builder.generated_files.each do |_, project_output|
 
         puts
         puts contents
-        fail_with_message("#{request} -- failed")
+        fail_with_message("Failed to upload to Xamarin Test Cloud")
       end
 
       #
       # Set output envs
-      puts
-      puts "\e[32mXamarin Test Cloud deploy succeeded\e[0m"
       system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
-
-      puts "The test log is available at: #{@result_log_path}"
       system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
+
+      puts "  \e[32mXamarin Test Cloud deploy succeeded\e[0m"
+      puts "  Logs are available at path: #{@result_log_path}"
     end
   end
 end
