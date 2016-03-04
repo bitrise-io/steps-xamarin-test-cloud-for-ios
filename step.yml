@@ -125,6 +125,9 @@ outputs:
       value_options:
       - succeeded
       - failed
+  - BITRISE_XAMARIN_IOS_UITEST_RUN_ID:
+    opts:
+      title: Run ID for the UI Tests session
   - BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT:
     opts:
       title: Result of the tests.

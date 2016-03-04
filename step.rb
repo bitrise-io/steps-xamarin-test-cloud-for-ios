@@ -1,6 +1,8 @@
 require 'optparse'
 require 'fileutils'
 require 'tmpdir'
+require 'open3'
+require 'json'
 
 require_relative 'xamarin-builder/builder'
 
@@ -222,21 +224,34 @@ builder.generated_files.each do |_, project_output|
       request << "#{options[:other_parameters]}" if options[:other_parameters]
 
       puts "  #{request.join(' ')}"
-      system(request.join(' '))
+      test_run_id = ""
 
-      unless $?.success?
-        file = File.open(@result_log_path)
-        contents = file.read
-        file.close
+      Open3.popen2e(request.join(' ')) do |stdin, stdout_err, wait_thr|
+          while line = stdout_err.gets
+              puts line
 
-        puts
-        puts contents
-        fail_with_message("Failed to upload to Xamarin Test Cloud")
+              jsonObject = JSON.parse(line, symbolize_keys: true)
+              test_run_id = jsonObject["TestRunId"]
+              puts "Found Test Run ID #{test_run_id}"
+          end
+
+          exit_status = wait_thr.value
+          unless exit_status.success?
+
+            file = File.open(@result_log_path)
+            contents = file.read
+            file.close
+
+            puts
+            puts contents
+            fail_with_message("Failed to upload to Xamarin Test Cloud")
+          end
       end
 
       #
       # Set output envs
       system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
+      system("envman add --key BITRISE_XAMARIN_IOS_UITEST_RUN_ID --value #{test_run_id}")
       system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
 
       puts "  \e[32mXamarin Test Cloud deploy succeeded\e[0m"
