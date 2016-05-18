@@ -201,6 +201,8 @@ output.each do |_, project_output|
   ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
   dsym_path = export_dsym(project_output[:xcarchive])
 
+  puts "project_output: #{project_output}"
+
   project_output[:uitests].each do |dll_path|
     any_uitest_built = true
 
