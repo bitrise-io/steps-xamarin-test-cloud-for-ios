@@ -8,8 +8,9 @@ require_relative 'xamarin-builder/builder'
 # --- Constants
 # -----------------------
 
+@work_dir = ENV['BITRISE_SOURCE_DIR']
+@result_log_path = File.join(@work_dir, 'TestResult.xml')
 @deploy_dir = ENV['BITRISE_DEPLOY_DIR']
-@result_log_path = './TestResult.xml'
 
 # -----------------------
 # --- Functions
@@ -120,16 +121,16 @@ end
 #
 # Parse options
 options = {
-    project: nil,
-    configuration: nil,
-    platform: nil,
-    api_key: nil,
-    user: nil,
-    devices: nil,
-    async: true,
-    series: 'master',
-    parallelization: nil,
-    other_parameters: nil
+  project: nil,
+  configuration: nil,
+  platform: nil,
+  api_key: nil,
+  user: nil,
+  devices: nil,
+  async: true,
+  series: 'master',
+  parallelization: nil,
+  other_parameters: nil
 }
 
 parser = OptionParser.new do |opts|
@@ -183,64 +184,84 @@ begin
   builder.build
   builder.build_test
 rescue => ex
-  fail_with_message("Build failed: #{ex}")
+  error_with_message(ex.inspect.to_s)
+  error_with_message('--- Stack trace: ---')
+  error_with_message(ex.backtrace.to_s)
+  exit(1)
 end
 
-builder.generated_files.each do |_, project_output|
-  if project_output[:xcarchive] && project_output[:uitests] && project_output[:uitests].length > 0
-    ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
-    dsym_path = export_dsym(project_output[:xcarchive])
+output = builder.generated_files
+fail_with_message 'No output generated' if output.nil? || output.empty?
 
-    raise 'No UITests found' if project_output[:uitests].size == 0
-    project_output[:uitests].each do |dll_path|
-      assembly_dir = File.dirname(dll_path)
+any_uitest_built = false
 
-      puts ""
-      puts "\e[34mUploading #{ipa_path} with #{dll_path}"
+output.each do |_, project_output|
+  next if project_output[:xcarchive].nil? || project_output[:uitests].nil? || project_output[:uitests].empty?
 
-      #
-      # Get test cloud path
-      test_cloud = Dir['./**/packages/Xamarin.UITest.*/tools/test-cloud.exe'].last
-      fail_with_message("Can't find test-cloud.exe") unless test_cloud
+  ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
+  dsym_path = export_dsym(project_output[:xcarchive])
 
-      #
-      # Build Request
-      request = [
-        "mono \"#{test_cloud}\"",
-        "submit \"#{ipa_path}\"",
-        options[:api_key],
-        "--assembly-dir \"#{assembly_dir}\"",
-        "--nunit-xml \"#{@result_log_path}\"",
-        "--user #{options[:user]}",
-        "--devices \"#{options[:devices]}\""
-      ]
-      request << '--async' if options[:async]
-      request << "--dsym \"#{dsym_path}\"" if dsym_path
-      request << "--series \"#{options[:series]}\"" if options[:series]
-      request << '--fixture-chunk' if options[:parallelization] == 'by_test_fixture'
-      request << '--test-chunk' if options[:parallelization] == 'by_test_chunk'
-      request << "#{options[:other_parameters]}" if options[:other_parameters]
+  puts "project_output: #{project_output}"
 
-      puts "  #{request.join(' ')}"
-      system(request.join(' '))
+  project_output[:uitests].each do |dll_path|
+    any_uitest_built = true
 
-      unless $?.success?
-        file = File.open(@result_log_path)
-        contents = file.read
-        file.close
+    assembly_dir = File.dirname(dll_path)
 
-        puts
-        puts contents
-        fail_with_message("Failed to upload to Xamarin Test Cloud")
-      end
+    puts
+    puts "\e[34mUploading #{ipa_path} with #{dll_path}\e[0m"
 
-      #
-      # Set output envs
-      system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
-      system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{@result_log_path}") if @result_log_path
+    #
+    # Get test cloud path
+    test_cloud = Dir[File.join(@work_dir, '/**/packages/Xamarin.UITest.*/tools/test-cloud.exe')].last
+    fail_with_message("\e[31mCan't find test-cloud.exe\e[0m") unless test_cloud
 
-      puts "  \e[32mXamarin Test Cloud deploy succeeded\e[0m"
-      puts "  Logs are available at path: #{@result_log_path}"
+    #
+    # Build Request
+    request = [
+      "mono \"#{test_cloud}\"",
+      "submit \"#{ipa_path}\"",
+      options[:api_key],
+      "--assembly-dir \"#{assembly_dir}\"",
+      "--nunit-xml \"#{@result_log_path}\"",
+      "--user #{options[:user]}",
+      "--devices \"#{options[:devices]}\""
+    ]
+    request << '--async' if options[:async]
+    request << "--dsym \"#{dsym_path}\"" if dsym_path
+    request << "--series \"#{options[:series]}\"" if options[:series]
+    request << '--fixture-chunk' if options[:parallelization] == 'by_test_fixture'
+    request << '--test-chunk' if options[:parallelization] == 'by_test_chunk'
+    request << options[:other_parameters].to_s if options[:other_parameters]
+
+    puts "  #{request.join(' ')}"
+    system(request.join(' '))
+    request_result = $?
+
+    result_log = ''
+    if File.exist? @result_log_path
+      file = File.open(@result_log_path)
+      result_log = file.read
+      file.close
     end
+
+    unless request_result.success?
+      puts
+      puts result_log
+      fail_with_message('Xamarin Test Cloud failed')
+    end
+
+    #
+    # Set output envs
+    system('envman add --key BITRISE_XAMARIN_TEST_RESULT --value succeeded')
+    system("envman add --key BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT --value #{result_log}") if result_log.to_s != ""
+
+    puts "  \e[32mXamarin Test Cloud deploy succeeded\e[0m"
+    puts "  Logs are available at path: #{@result_log_path}"
   end
+end
+
+unless any_uitest_built
+  puts "generated_files: #{output}"
+  fail_with_message 'No xcarchive or built UITest found in outputs'
 end
