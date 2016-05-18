@@ -196,7 +196,7 @@ fail_with_message 'No output generated' if output.nil? || output.empty?
 any_uitest_built = false
 
 output.each do |_, project_output|
-  next unless project_output[:xcarchive] || project_output[:uitests] || project_output[:uitests].empty?
+  next if project_output[:xcarchive].nil? || project_output[:uitests].nil? || project_output[:uitests].empty?
 
   ipa_path = export_xcarchive(options[:export_options], project_output[:xcarchive])
   dsym_path = export_dsym(project_output[:xcarchive])
