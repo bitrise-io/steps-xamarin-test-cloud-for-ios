@@ -1,6 +1,13 @@
-## Changelog (Current version: 1.1.0)
+## Changelog (Current version: 1.1.1)
 
 -----------------
+
+### 1.1.1 (2016 May 25)
+
+* [d21d047] prepare for release
+* [e1709eb] Merge pull request #20 from bitrise-steplib/referred_project_errors
+* [0214075] builder update - referred project warnings
+* [9ed66cd] builder update - referred project warnings
 
 ### 1.1.0 (2016 May 18)
 
@@ -54,4 +61,4 @@
 
 -----------------
 
-Updated: 2016 May 18
+Updated: 2016 May 25
