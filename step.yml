@@ -62,6 +62,8 @@ inputs:
       summary: "Don't wait for cloud test run to complete"
       description: |
         Don't wait for cloud test run to complete.
+
+        Adds '--async-json' flag to Xamarin Test Cloud upload command.
       value_options:
       - "yes"
       - "no"
@@ -108,3 +110,10 @@ outputs:
     opts:
       title: Result of the tests.
       description: ""
+  - BITRISE_XAMARIN_TEST_TO_RUN_ID:
+    opts:
+      title: Test to run ID.
+      description: |
+        Test to run ID.
+
+        This output is available only if 'test_cloud_is_async' is set to 'yes'.
