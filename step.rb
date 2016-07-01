@@ -190,7 +190,7 @@ log_fail('devices not specified') unless options[:devices]
 #
 # Main
 begin
-  builder = Builder.new(options[:project], options[:configuration], options[:platform], ['ios'])
+  builder = Builder.new(options[:project], options[:configuration], options[:platform], [Api::IOS])
   builder.build
   builder.build_test
 rescue => ex
