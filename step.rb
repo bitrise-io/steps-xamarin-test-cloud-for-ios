@@ -147,7 +147,7 @@ options = {
 
 parser = OptionParser.new do |opts|
   opts.banner = 'Usage: step.rb [options]'
-  opts.on('-s', '--project path', 'Project path') { |s| options[:project] = s unless s.to_s == '' }
+  opts.on('-s', '--solution path', 'Solution path') { |s| options[:project] = s unless s.to_s == '' }
   opts.on('-c', '--configuration config', 'Configuration') { |c| options[:configuration] = c unless c.to_s == '' }
   opts.on('-p', '--platform platform', 'Platform') { |p| options[:platform] = p unless p.to_s == '' }
   opts.on('-a', '--api key', 'Api key') { |a| options[:api_key] = a unless a.to_s == '' }
@@ -167,7 +167,7 @@ parser.parse!
 #
 # Print options
 log_info 'Configs:'
-log_details("* project: #{options[:project]}")
+log_details("* solution: #{options[:project]}")
 log_details("* configuration: #{options[:configuration]}")
 log_details("* platform: #{options[:platform]}")
 log_details('* api_key: ***')
@@ -180,7 +180,7 @@ log_details("* other_parameters: #{options[:other_parameters]}")
 
 #
 # Validate options
-log_fail('No project file found') unless options[:project] && File.exist?(options[:project])
+log_fail('no solution file found') unless options[:project] && File.exist?(options[:project])
 log_fail('configuration not specified') unless options[:configuration]
 log_fail('platform not specified') unless options[:platform]
 log_fail('api_key not specified') unless options[:api_key]
