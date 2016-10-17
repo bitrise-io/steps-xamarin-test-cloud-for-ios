@@ -135,7 +135,7 @@ func main() {
 	//
 	// build
 	fmt.Println()
-	log.Info("Building all Xamarin UITest and Referred Projects in solution: %s", configs.XamarinSolution)
+	log.Info("Building all iOS Xamarin UITest and Referred Projects in solution: %s", configs.XamarinSolution)
 
 	builder, err := builder.New(configs.XamarinSolution, []constants.ProjectType{constants.ProjectTypeIOS}, false)
 	if err != nil {

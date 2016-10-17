@@ -5,13 +5,13 @@ app:
   envs:
   - STEP_VERSION: 1.2.2
 
-  - BITRISE_PROJECT_PATH: $BITRISE_PROJECT_PATH
+  - SAMPLE_APP_URL: https://github.com/bitrise-io/sample-apps-xamarin-ios.git
+  - BITRISE_PROJECT_PATH: CreditCardValidator.iOS.sln
+
+  # Set this inputs in your .bitrise.secrets
   - USER: $USER
   - API_KEY: $API_KEY
   - DEVICES: $DEVICES
-
-  - SAMPLE_APP_URL: https://github.com/bitrise-io/sample-apps-xamarin-ios.git
-  - BITRISE_PROJECT_PATH: CreditCardValidator.iOS.sln
 
 workflows:
   # ----------------------------------------------------------------
@@ -136,7 +136,7 @@ workflows:
             bitrise share create --stepid ${STEP_ID_IN_STEPLIB} --tag ${STEP_GIT_VERION_TAG_TO_SHARE} --git ${STEP_GIT_CLONE_URL}
 
             bitrise share finish
-            
+
   # ----------------------------------------------------------------
   # --- Utility workflows
   godeps-update:
