@@ -15,6 +15,7 @@ import (
 	"github.com/bitrise-tools/go-xamarin/builder"
 	"github.com/bitrise-tools/go-xamarin/constants"
 	"github.com/bitrise-tools/go-xamarin/tools/testcloud"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 // ConfigsModel ...
@@ -29,7 +30,7 @@ type ConfigsModel struct {
 	IsAsync         string
 	Series          string
 	Parallelization string
-	OtherParameters string
+	CustomOptions   string
 
 	DeployDir string
 }
@@ -46,7 +47,7 @@ func createConfigsModelFromEnvs() ConfigsModel {
 		IsAsync:         os.Getenv("test_cloud_is_async"),
 		Series:          os.Getenv("test_cloud_series"),
 		Parallelization: os.Getenv("test_cloud_parallelization"),
-		OtherParameters: os.Getenv("other_parameters"),
+		CustomOptions:   os.Getenv("other_parameters"),
 
 		DeployDir: os.Getenv("BITRISE_DEPLOY_DIR"),
 	}
@@ -67,7 +68,7 @@ func (configs ConfigsModel) print() {
 	log.Detail("- IsAsync: %s", configs.IsAsync)
 	log.Detail("- Series: %s", configs.Series)
 	log.Detail("- Parallelization: %s", configs.Parallelization)
-	log.Detail("- OtherParameters: %s", configs.OtherParameters)
+	log.Detail("- CustomOptions: %s", configs.CustomOptions)
 
 	log.Info("Other Configs:")
 
@@ -281,6 +282,23 @@ func main() {
 		}
 
 		testCloud.SetParallelization(parallelization)
+	}
+	// ---
+
+	// Custom Options
+	if configs.CustomOptions != "" {
+		options, err := shellquote.Split(configs.CustomOptions)
+		if err != nil {
+			log.Error("Failed to split params (%s), error: %s", configs.CustomOptions, err)
+
+			if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_RESULT", "failed"); err != nil {
+				log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_RESULT", err)
+			}
+
+			os.Exit(1)
+		}
+
+		testCloud.SetCustomOptions(options...)
 	}
 	// ---
 
