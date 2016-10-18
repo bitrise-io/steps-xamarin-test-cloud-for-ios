@@ -261,8 +261,11 @@ func main() {
 	testCloud.SetIsAsyncJSON(configs.IsAsync == "yes")
 	testCloud.SetSeries(configs.Series)
 
+	// If test cloud runs in asnyc mode test result will not be saved into file
 	resultLogPth := filepath.Join(configs.DeployDir, "TestResult.xml")
-	testCloud.SetNunitXMLPth(resultLogPth)
+	if configs.IsAsync != "yes" {
+		testCloud.SetNunitXMLPth(resultLogPth)
+	}
 
 	// Parallelization
 	if configs.Parallelization != "none" {
@@ -339,11 +342,14 @@ func main() {
 
 			err := testCloud.Submit(callback)
 
-			testLog, logErr := testResultLogContent(resultLogPth)
-			if logErr != nil {
-				log.Warn("Failed to read test result, error: %s", logErr)
+			// If test cloud runs in asnyc mode test result will not be saved into file
+			if configs.IsAsync != "yes" {
+				testLog, logErr := testResultLogContent(resultLogPth)
+				if logErr != nil {
+					log.Warn("Failed to read test result, error: %s", logErr)
+				}
+				resultLog = testLog
 			}
-			resultLog = testLog
 
 			if err != nil {
 				log.Error("Submit failed, error: %s", err)
@@ -352,8 +358,10 @@ func main() {
 					log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_RESULT", err)
 				}
 
-				if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
-					log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+				if resultLog != "" {
+					if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
+						log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+					}
 				}
 
 				os.Exit(1)
@@ -376,12 +384,6 @@ func main() {
 					if err := json.Unmarshal([]byte(jsonLine), &result); err != nil {
 						log.Error("Failed to unmarshal result, error: %s", err)
 					} else {
-						if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_TO_RUN_ID", result.TestRunID); err != nil {
-							log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_TO_RUN_ID", err)
-						}
-
-						log.Done("TestRunId (%s) is available in (%s) environment variable", result.TestRunID, "BITRISE_XAMARIN_TEST_TO_RUN_ID")
-
 						for _, errorMsg := range result.ErrorMessages {
 							log.Error(errorMsg)
 						}
@@ -391,12 +393,20 @@ func main() {
 								log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_RESULT", err)
 							}
 
-							if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
-								log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+							if resultLog != "" {
+								if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
+									log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+								}
 							}
 
 							os.Exit(1)
 						}
+
+						if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_TO_RUN_ID", result.TestRunID); err != nil {
+							log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_TO_RUN_ID", err)
+						}
+
+						log.Done("TestRunId (%s) is available in (%s) environment variable", result.TestRunID, "BITRISE_XAMARIN_TEST_TO_RUN_ID")
 					}
 				}
 			}
@@ -408,7 +418,9 @@ func main() {
 		log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_RESULT", err)
 	}
 
-	if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
-		log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+	if resultLog != "" {
+		if err := exportEnvironmentWithEnvman("BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", resultLog); err != nil {
+			log.Warn("Failed to export environment: %s, error: %s", "BITRISE_XAMARIN_TEST_FULL_RESULTS_TEXT", err)
+		}
 	}
 }
