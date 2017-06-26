@@ -190,7 +190,7 @@ func main() {
 	}
 
 	startTime := time.Now()
-	warnings, err := builder.BuildAndRunAllXamarinUITestAndReferredProjects(configs.XamarinConfiguration, configs.XamarinPlatform, nil, callback)
+	warnings, err := builder.BuildAllUITestableXamarinProjects(configs.XamarinConfiguration, configs.XamarinPlatform, nil, callback)
 	endTime := time.Now()
 
 	for _, warning := range warnings {
