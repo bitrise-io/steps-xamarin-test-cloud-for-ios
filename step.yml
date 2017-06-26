@@ -116,6 +116,7 @@ inputs:
       - xbuild
       - msbuild
       - mdtool
+    is_required: true
 outputs:
   - BITRISE_XAMARIN_TEST_RESULT:
     opts:
