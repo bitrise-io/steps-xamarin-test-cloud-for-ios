@@ -1,6 +1,11 @@
-## Changelog (Current version: 2.2.0)
+## Changelog (Current version: 2.3.0)
 
 -----------------
+
+### 2.3.0 (2017 Jun 28)
+
+* [ecb5a33] prepare for 2.3.0
+* [5678a53] specify buildtool to use (#29)
 
 ### 2.2.0 (2017 Mar 02)
 
@@ -100,4 +105,4 @@
 
 -----------------
 
-Updated: 2017 Mar 02
+Updated: 2017 Jun 28
